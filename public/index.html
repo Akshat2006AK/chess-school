@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chess School: learn chess by playing</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#1b1431;color:#f1e8e4;font:16px/1.5 system-ui,'Segoe UI',sans-serif}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#c:focus-visible{outline:3px solid #9fd0ff;outline-offset:-3px}
+#app{position:fixed;inset:0;pointer-events:none}
+#app::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 42%,transparent 38%,rgba(6,2,10,.72))}
+.pg{position:absolute;inset:0;display:flex;padding:clamp(12px,3.5vw,44px)}
+.pg[hidden]{display:none}
+h1{font:700 clamp(2.6rem,7vw,5rem)/1 Georgia,'Times New Roman',serif;margin:0;letter-spacing:.02em;background:linear-gradient(#ffe6b0,#ff7a1a 55%,#a80f0f);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 18px rgba(255,70,20,.55))}
+button,select{pointer-events:auto;font:inherit;color:#f1e8e4;background:rgba(30,10,12,.85);border:1px solid rgba(255,100,50,.5);border-radius:8px;padding:8px 16px;cursor:pointer}
+button:hover:not(:disabled){border-color:#ff7a1a;background:rgba(255,90,30,.22)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button:focus-visible,input:focus-visible{outline:3px solid #9fd0ff;outline-offset:2px}
+button.on{background:linear-gradient(#ff8a2a,#b3150f);color:#fff;border-color:#ff8a2a;font-weight:700}
+button.ic{padding:8px 13px;font-size:1.1rem;line-height:1}
+.glass{pointer-events:auto;background:rgba(18,8,10,.8);border:1px solid rgba(255,120,60,.4);border-radius:16px;backdrop-filter:blur(10px);box-shadow:0 24px 60px -20px #000,0 0 44px rgba(255,90,30,.14)}
+.btns,.tabs,.chips{display:flex;gap:8px;flex-wrap:wrap}
+input{width:100%;font:inherit;color:#f6ece7;background:rgba(10,4,8,.7);border:1px solid rgba(255,120,60,.45);border-radius:8px;padding:10px 12px;pointer-events:auto}
+.cta{width:100%;margin-top:14px;padding:12px;font-size:1.1rem;font-weight:700;background:linear-gradient(#ff8a2a,#b3150f);border-color:#ff8a2a;color:#fff}
+.ghost{width:100%;margin-top:10px}
+/* login */
+#p-login{align-items:center}
+.lbox{width:min(440px,100%)}
+.tag{color:#f0d9cc;text-shadow:0 1px 8px #000;margin:.7rem 0 1.4rem;font-size:1.1rem}
+.pad{padding:22px}
+.tabs button{flex:1}
+label.f{display:block;margin:12px 0 4px;color:#d9c2b8;font-size:.9rem}
+.err{color:#ff8a7a;min-height:1.4em;margin:10px 0 0;font-size:.9rem}
+.note{font-size:.8rem;color:#b99;margin:12px 0 0}
+/* setup */
+#p-setup{align-items:center}
+.panel{padding:22px;width:min(540px,100%);max-height:100%;overflow:auto}
+.panel h3{margin:18px 0 8px;font:700 1rem Georgia,serif;color:#ff9a5c}
+.phead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.big{font:700 1.7rem Georgia,serif;margin:0}
+.sub{margin:.2rem 0 0;color:#cdb7ad;font-size:.92rem}
+.grid2,.grid3{display:grid;gap:8px}
+.grid2{grid-template-columns:1fr 1fr}.grid3{grid-template-columns:repeat(3,1fr)}
+.opt{display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:10px 12px;line-height:1.25}
+.opt span{font-size:.78rem;color:#cdb7ad;font-weight:400}.opt.on span{color:#ffe6d6}
+/* play */
+#p-play{flex-direction:column;justify-content:space-between;padding:12px}
+.hudtop,.hudbot{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.hudbot{align-items:flex-end}
+.left{flex:1 1 300px;max-width:470px}
+.btns{margin:10px 0 0}
+.card{display:flex;align-items:center;gap:10px;padding:8px 14px;border-radius:14px;background:rgba(18,8,10,.86);border:1px solid rgba(255,100,50,.4);min-width:220px}
+.av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font:700 1.1rem Georgia,serif;font-style:normal;border:2px solid #c8932a}
+.av.w{background:#e9e4d6;color:#3a2e14}.av.b{background:#4a0f12;color:#e8cfd0;border-color:#b8b4c0}
+.nm{flex:1;min-width:0}.nm b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nm small{color:#c9b2ab;font-size:.75rem}
+.tm{font:700 1.8rem/1 ui-monospace,'SF Mono',Consolas,monospace;font-variant-numeric:tabular-nums}
+.card.on{border-color:#ff8a2a;box-shadow:0 0 18px rgba(255,120,40,.55)}
+.card.low .tm{color:#ff5a4a}.card.noclk .tm{display:none}
+@keyframes pl{50%{background:rgba(110,10,10,.9)}}
+@media (prefers-reduced-motion:no-preference){.card.low.on{animation:pl 1s steps(2) infinite}.lbox,.panel{animation:rise .7s ease both}button{transition:border-color .15s,background .15s}}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}}
+@media (max-width:640px){.card{min-width:0;padding:6px 10px}.tm{font-size:1.3rem}.grid3{grid-template-columns:1fr}#p-login,#p-setup{align-items:flex-start;overflow:auto}}
+#coach{pointer-events:auto;background:rgba(18,8,10,.84);border:1px solid rgba(255,100,50,.4);border-left:4px solid #ff5a1f;border-radius:12px;backdrop-filter:blur(6px);padding:12px 14px;min-height:84px}
+#cx button{margin:6px 6px 0 0;padding:4px 12px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* result */
+#res{position:fixed;inset:0;display:grid;place-items:center;background:rgba(5,2,8,.62);z-index:5}
+#res[hidden]{display:none}
+#res .glass{padding:26px 30px;width:min(460px,92vw);text-align:center}
+#rtt{font:700 2.6rem Georgia,serif;margin:0 0 8px;background:linear-gradient(#ffe6b0,#ff7a1a 60%,#a80f0f);-webkit-background-clip:text;background-clip:text;color:transparent}
+#res .btns{justify-content:center;margin-top:16px}
+</style>
+</head>
+<body>
+<canvas id="c" tabindex="0" role="img" aria-label="3D chess board. Press Enter to focus, then use arrow keys to move the cursor, Enter to select a piece or move, Escape to cancel."></canvas>
+<div id="sr" class="sr" role="status" aria-live="polite"></div>
+<div id="app">
+<section class="pg" id="p-login" hidden>
+ <div class="lbox"><h1>Chess School</h1><p class="tag">Command a royal court on a burning battlefield. Learn the game, then win it.</p>
+ <form id="lf" class="glass pad" novalidate>
+  <div class="tabs"><button type="button" id="tl" class="on">Log in</button><button type="button" id="ts">Sign up</button><button type="button" id="ta">Admin Login</button></div>
+  <label class="f" for="lu">Username</label><input id="lu" autocomplete="username" maxlength="16">
+  <label class="f" for="lp">Password</label><input id="lp" type="password" autocomplete="current-password">
+  <div id="lcw" hidden><label class="f" for="lc">Confirm password</label><input id="lc" type="password" autocomplete="new-password"></div>
+  <p class="err" id="lerr" role="alert"></p>
+  <button class="cta" id="lgo" type="submit">Log in</button>
+  <button class="ghost" id="gst" type="button">Play as guest</button>
+  <p class="note">Accounts are stored in this browser only. There is no server, so clearing your browser data removes them.</p>
+  <p class="note" id="adminNote" hidden>Admin login authenticates with the server. Requires admin account created via backend.</p>
+  <p style="margin-top:20px;text-align:center;color:#887; font-size:0.85rem;">Made by Avantika ❤️</p>
+ </form></div>
+</section>
+<section class="pg" id="p-setup" hidden>
+ <div class="panel glass">
+  <div class="phead"><div><h2 class="big">Prepare for battle</h2><p class="sub">Welcome, <b id="uwho"></b>. <span id="rec"></span></p></div><button id="lo">Log out</button></div>
+  <h3>Opponent</h3>
+  <div class="grid2"><button class="opt" data-o="cpu"><b>vs Computer</b><span>Train against the machine</span></button><button class="opt" data-o="two"><b>vs Human</b><span>Two players, one screen</span></button></div>
+  <div id="lvbox"><h3>Computer level</h3>
+   <div class="grid3"><button class="opt" data-l="beginner"><b>Beginner</b><span>Careless, grabs pieces</span></button><button class="opt" data-l="medium"><b>Medium</b><span>Thinks 2 moves ahead</span></button><button class="opt" data-l="expert"><b>Expert</b><span>Thinks 3 moves ahead</span></button></div></div>
+  <div id="p2box" hidden><h3>Second player</h3><input id="p2n" maxlength="16" placeholder="Player 2" aria-label="Second player name"></div>
+  <h3>Clock</h3>
+  <div class="chips"><button data-t="none">No clock</button><button data-t="60+0">1 min</button><button data-t="180+2">3 + 2</button><button data-t="300+3">5 + 3</button><button data-t="600+0">10 min</button><button data-t="900+10">15 + 10</button><button data-t="1800+0">30 min</button></div>
+  <h3>Hints</h3>
+  <div class="grid3"><button class="opt" data-h="full"><b>Guided</b><span>Move dots and danger warnings</span></button><button class="opt" data-h="moves"><b>Moves only</b><span>Move dots, no warnings</span></button><button class="opt" data-h="off"><b>Off</b><span>No help, no hint button</span></button></div>
+  <button class="cta" id="startbtn">Start battle</button>
+  <p class="note">Keyboard: Tab to the board, arrow keys move the cursor, Enter selects or moves, Esc cancels. Shift+arrows turn the view.</p>
+  <p style="margin-top:20px;text-align:center;color:#887; font-size:0.85rem;">Made by Avantika ❤️</p>
+ </div>
+</section>
+<section class="pg" id="p-play" hidden>
+ <div class="hudtop">
+  <div class="btns"><button id="mn">Menu</button><button id="rv">Reset view</button><button id="zi" class="ic" aria-label="Zoom in">+</button><button id="zo" class="ic" aria-label="Zoom out">−</button><button id="rl" class="ic" aria-label="Rotate left">⟲</button><button id="rr" class="ic" aria-label="Rotate right">⟳</button><button id="at" hidden>Auto-turn: on</button></div>
+  <div class="card" id="ckt"><i class="av" id="avt"></i><div class="nm"><b id="nkt"></b><small id="lkt"></small></div><span class="tm" id="tkt"></span></div>
+ </div>
+ <div class="hudbot">
+  <div class="left"><div id="coach" role="status" aria-live="polite"><div id="cx"></div></div>
+   <div class="btns"><button id="hint">Hint</button><button id="undo">Undo</button><button id="rsg">Resign</button><button id="new">Restart</button></div></div>
+  <div class="card" id="ckm"><i class="av" id="avm"></i><div class="nm"><b id="nkm"></b><small id="lkm"></small></div><span class="tm" id="tkm"></span></div>
+ </div>
+</section>
+<section class="pg" id="p-admin" hidden>
+ <div class="panel glass" style="width:min(1200px,95vw);max-height:100%;overflow:auto">
+  <div class="phead"><div><h2 class="big">Admin Panel</h2><p class="sub">Welcome, <b id="adminUser"></b>. <span id="adminRec"></span></p></div><button id="adminLo">Back to Game</button></div>
+  <div class="tabs" id="adminTabs">
+   <button type="button" class="on" data-tab="dashboard">Dashboard</button>
+   <button type="button" data-tab="users">Users</button>
+   <button type="button" data-tab="rooms">Rooms</button>
+   <button type="button" data-tab="games">Games</button>
+   <button type="button" data-tab="tournaments">Tournaments</button>
+   <button type="button" data-tab="announcements">Announcements</button>
+  </div>
+  <div id="adminContent"></div>
+  <p style="margin-top:20px;text-align:center;color:#887; font-size:0.8rem;">Made by Avantika ❤️</p>
+ </div>
+</section>
+<div id="res" hidden><div class="glass" role="dialog" aria-live="polite"><h2 id="rtt"></h2><div id="rsb"></div>
+ <div class="btns"><button id="rm" class="on">Rematch</button><button id="rsu">Change setup</button><button id="rvw">View board</button></div>
+ <p style="margin-top:16px;text-align:center;color:#887; font-size:0.8rem;">Made by Avantika ❤️</p></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+//ENG-START
+const V={p:100,n:320,b:330,r:500,q:900,k:20000};
+const NAME={p:'Pawn',n:'Knight',b:'Bishop',r:'Rook',q:'Queen',k:'King'};
+const HOW={
+p:'Moves forward one square (two from its starting row) and captures diagonally. Reaching the far end promotes it (you pick the new piece), and it can capture en passant.',
+n:'Moves in an L: two squares one way, one the other. It is the only piece that can jump over others.',
+b:'Slides any distance diagonally and stays on one square colour all game.',
+r:'Slides any distance forward, back or sideways.',
+q:'Slides like a Rook and a Bishop combined. Your strongest piece, so protect her.',
+k:'Moves one square in any direction, but never into check. It can also castle: move it two squares toward a Rook that has not moved. Lose it and the game is over.'};
+const LV={
+beginner:{t:'Beginner (Recruit)',tips:['Goal: trap the enemy King so it cannot escape (checkmate).','Green dots show legal moves. Amber dots warn that the piece could be captured there.','Control the centre with your e and d pawns.','Never leave a piece where a cheaper piece can take it.','The computer is careless: it often grabs a piece it can reach, but it never plans ahead.']},
+medium:{t:'Medium (Veteran)',tips:['Green dots show legal moves; you must spot the dangers yourself.','Develop Knights and Bishops before moving the Queen.','Look for forks: one piece attacking two targets at once.','Trade pieces when you are ahead in material.','The computer looks 2 moves ahead.']},
+expert:{t:'Expert (Warlord)',tips:['No dots: find the legal moves yourself.','Before every move, ask what your opponent is threatening.','Push passed pawns in the endgame and bring your King to the centre.','Use Hint sparingly.','The computer looks 3 moves ahead.']}};
+const isW=p=>p===p.toUpperCase(), col=p=>isW(p)?'w':'b', sqn=i=>'abcdefgh'[i&7]+(8-(i>>3));
+const N8=[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]],D=[[-1,-1],[-1,1],[1,-1],[1,1]],S=[[-1,0],[1,0],[0,-1],[0,1]];
+const ok=(r,f)=>r>=0&&r<8&&f>=0&&f<8;
+const CM={60:-4,56:-3,63:-2,4:-13,0:-9,7:-5},crm=q=>CM[q]===undefined?-1:CM[q];
+// board = 64 squares, then b[64] castling rights (1 wK, 2 wQ, 4 bK, 8 bQ) and b[65] en passant square (-1 if none). A move is [from,to] or [from,to,promotion].
+function pseudo(b,c,at){const out=[],w=c==='w';
+ for(let i=0;i<64;i++){const p=b[i];if(!p||col(p)!==c)continue;
+  const t=p.toLowerCase(),r=i>>3,f=i&7;
+  if(t==='p'){const d=w?-1:1,r1=r+d,pr=r1===(w?0:7);
+   const add=to=>{if(pr&&!at)for(const q of'qrbn')out.push([i,to,q]);else out.push([i,to]);};
+   if(!at&&ok(r1,f)&&!b[r1*8+f]){add(r1*8+f);if(r===(w?6:1)&&!b[(r+2*d)*8+f])out.push([i,(r+2*d)*8+f]);}
+   for(const df of[-1,1]){const ff=f+df;if(ok(r1,ff)){const to=r1*8+ff,q=b[to];if(at||(q&&col(q)!==c))add(to);else if(!q&&to===b[65])out.push([i,to]);}}
+  }else if(t==='n'||t==='k'){
+   for(const[dr,df]of(t==='n'?N8:[...D,...S])){const rr=r+dr,ff=f+df;if(ok(rr,ff)){const q=b[rr*8+ff];if(!q||col(q)!==c)out.push([i,rr*8+ff]);}}
+   if(t==='k'&&!at&&i===(w?60:4)){const rs=b[64],bk=w?1:4,bq=w?2:8,rk=w?'R':'r';
+    if(rs&(bk|bq)){const A=new Set(pseudo(b,w?'b':'w',1).map(m=>m[1]));
+     if(!A.has(i)){
+      if((rs&bk)&&b[i+3]===rk&&!b[i+1]&&!b[i+2]&&!A.has(i+1)&&!A.has(i+2))out.push([i,i+2]);
+      if((rs&bq)&&b[i-4]===rk&&!b[i-1]&&!b[i-2]&&!b[i-3]&&!A.has(i-1)&&!A.has(i-2))out.push([i,i-2]);}}}
+  }else{
+   for(const[dr,df]of(t==='b'?D:t==='r'?S:[...D,...S])){let rr=r+dr,ff=f+df;
+    while(ok(rr,ff)){const q=b[rr*8+ff];if(!q)out.push([i,rr*8+ff]);else{if(col(q)!==c)out.push([i,rr*8+ff]);break;}rr+=dr;ff+=df;}}
+  }}
+ return out;}
+function make(b,m){const nb=b.slice(),f=m[0],t=m[1],p=nb[f],w=isW(p),ty=p.toLowerCase();let pr=m[2],ep=-1;
+ if(!pr&&ty==='p'&&(t<8||t>55))pr='q';
+ if(ty==='p'&&(t&7)!==(f&7)&&!nb[t])nb[(f>>3)*8+(t&7)]=null;
+ if(ty==='k'&&Math.abs(t-f)===2){const r=f&56;if(t>f){nb[r+5]=nb[r+7];nb[r+7]=null;}else{nb[r+3]=nb[r];nb[r]=null;}}
+ nb[t]=pr?(w?pr.toUpperCase():pr):p;nb[f]=null;
+ if(ty==='p'&&Math.abs(t-f)===16){const e=w?'p':'P',a=t&7;if((a>0&&nb[t-1]===e)||(a<7&&nb[t+1]===e))ep=(f+t)/2;}
+ nb[64]=b[64]&crm(f)&crm(t);nb[65]=ep;return nb;}
+const chk=(b,c)=>{const k=c==='w'?'K':'k';return pseudo(b,c==='w'?'b':'w',1).some(m=>b[m[1]]===k);};
+const legalMoves=(b,c)=>pseudo(b,c).filter(m=>!chk(make(b,m),c));
+const capv=(b,m)=>b[m[1]]?V[b[m[1]].toLowerCase()]:0;
+const mo=(b,m)=>capv(b,m)+(m[2]==='q'?800:m[2]?100:0);
+function ev(b){let s=0;for(let i=0;i<64;i++){const p=b[i];if(!p)continue;const t=p.toLowerCase(),r=i>>3,f=i&7;
+ let v=V[t]+(t==='k'?0:(3.5-Math.abs(3.5-f))*4+(3.5-Math.abs(3.5-r))*4);if(t==='p')v+=(isW(p)?6-r:r-1)*6;s+=isW(p)?v:-v;}return s;}
+function qs(b,c,a,be,d){const st=ev(b),w=c==='w';
+ if(w){if(st>=be)return st;if(st>a)a=st;}else{if(st<=a)return st;if(st<be)be=st;}
+ if(d<=0)return st;
+ const ms=pseudo(b,c).filter(m=>b[m[1]]||m[2]==='q').sort((x,y)=>mo(b,y)-mo(b,x));let v=st;
+ for(const m of ms){const nb=make(b,m);if(chk(nb,c))continue;const s=qs(nb,w?'b':'w',a,be,d-1);
+  if(w){if(s>v)v=s;if(v>a)a=v;}else{if(s<v)v=s;if(v<be)be=v;}if(a>=be)break;}
+ return v;}
+function ab(b,c,d,a,be,ply){if(d<=0){if(ply>8||!chk(b,c))return qs(b,c,a,be,3);d=1;}
+ const ms=legalMoves(b,c);
+ if(!ms.length)return chk(b,c)?(c==='w'?-1e5+ply:1e5-ply):0;
+ ms.sort((x,y)=>mo(b,y)-mo(b,x));
+ if(c==='w'){let v=-Infinity;for(const m of ms){v=Math.max(v,ab(make(b,m),'b',d-1,a,be,ply+1));a=Math.max(a,v);if(a>=be)break;}return v;}
+ let v=Infinity;for(const m of ms){v=Math.min(v,ab(make(b,m),'w',d-1,a,be,ply+1));be=Math.min(be,v);if(a>=be)break;}return v;}
+function best(b,c,d){const ms=legalMoves(b,c);let bm=null,bv=c==='w'?-Infinity:Infinity;ms.sort((x,y)=>mo(b,y)-mo(b,x));
+ for(const m of ms){const v=ab(make(b,m),c==='w'?'b':'w',d-1,-Infinity,Infinity,1)+Math.random()*2+(c==='w'?1:-1)*((b[m[1]]||m[2]==='q')?3:0);if(c==='w'?v>bv:v<bv){bv=v;bm=m;}}return bm;}
+//ENG-END
+
+
+const ENG=document.currentScript.textContent.split('//ENG'+'-START')[1].split('//ENG'+'-END')[0],pend=new Map();let wk=null,wid=0;
+try{wk=new Worker(URL.createObjectURL(new Blob([ENG+';onmessage=e=>{const{b,c,d,id}=e.data;postMessage({id,m:best(b,c,d)});};'],{type:'text/javascript'})));
+ wk.onmessage=e=>{const q=pend.get(e.data.id);if(q){pend.delete(e.data.id);q.res(e.data.m);}};
+ wk.onerror=()=>{const qs=[...pend.values()];pend.clear();wk=null;qs.forEach(q=>q.res(best(...q.a)));};}catch(e){wk=null;}
+const think=(b,c,d)=>new Promise(res=>{if(!wk)return res(best(b,c,d));const id=++wid;pend.set(id,{res,a:[b,c,d]});wk.postMessage({b,c,d,id});});
+if(typeof THREE==='undefined'){document.body.insertAdjacentHTML('beforeend','<p style="position:fixed;top:40%;left:0;right:0;text-align:center">Could not load the 3D library. Check your connection and reload.</p>');throw new Error('three.js failed to load');}
+const T=THREE,$=id=>document.getElementById(id),say=h=>$('cx').innerHTML=h,rnd=(a,b)=>a+Math.random()*(b-a);
+const RM=matchMedia('(prefers-reduced-motion:reduce)').matches;
+const START=[...'rnbqkbnr',...'pppppppp',...Array(32).fill(null),...'PPPPPPPP',...'RNBQKBNR',15,-1];
+const CY=(a,b,h,s=16)=>new T.CylinderGeometry(a,b,h,s),SP=r=>new T.SphereGeometry(r,16,12),CO=(r,h)=>new T.ConeGeometry(r,h,16),BX=(w,h,d)=>new T.BoxGeometry(w,h,d);
+const MT=(c,o)=>new T.MeshStandardMaterial(Object.assign({color:c,roughness:.6,metalness:.1},o));
+const mk=(g,geo,mat,x,y,z,sh=1)=>{const m=new T.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=!!sh;m.receiveShadow=true;g.add(m);return m;};
+const cvs=(w,h,fn)=>{const c=document.createElement('canvas');c.width=w;c.height=h;fn(c.getContext('2d'));return new T.CanvasTexture(c);};
+let R;try{R=new T.WebGLRenderer({canvas:$('c'),antialias:true});}catch(e){document.body.insertAdjacentHTML('beforeend','<p style="position:fixed;top:40%;left:0;right:0;text-align:center">3D graphics (WebGL) is not available in this browser.</p>');throw e;}
+R.shadowMap.enabled=true;R.shadowMap.type=T.PCFSoftShadowMap;R.setPixelRatio(Math.min(devicePixelRatio,2));
+const sc=new T.Scene(),cam=new T.PerspectiveCamera(42,1,.1,500);
+sc.fog=new T.Fog(0xb85a4c,30,300);
+// sky, sun, light
+sc.add(new T.Mesh(new T.SphereGeometry(300,32,16),new T.MeshBasicMaterial({map:cvs(2,512,x=>{const g=x.createLinearGradient(0,0,0,512);[[0,'#0f0a22'],[.3,'#3a2050'],[.43,'#a8406c'],[.48,'#f58f4d'],[.5,'#ffc27a'],[1,'#ffc27a']].forEach(([o,c])=>g.addColorStop(o,c));x.fillStyle=g;x.fillRect(0,0,2,512);}),side:T.BackSide,fog:false,depthWrite:false})));
+const sun=new T.Sprite(new T.SpriteMaterial({map:cvs(256,256,x=>{const g=x.createRadialGradient(128,128,0,128,128,128);g.addColorStop(0,'#fff6d0');g.addColorStop(.2,'rgba(255,200,120,.8)');g.addColorStop(1,'rgba(255,120,60,0)');x.fillStyle=g;x.fillRect(0,0,256,256);}),blending:T.AdditiveBlending,fog:false,depthWrite:false}));
+sun.scale.set(120,120,1);sun.position.set(-70,22,-230);sc.add(sun);
+sc.add(new T.HemisphereLight(0xffb48a,0x2a1a3a,.8));
+const dl=new T.DirectionalLight(0xffa860,1.5);dl.position.set(-20,16,-34);dl.castShadow=true;dl.shadow.mapSize.set(2048,2048);
+Object.assign(dl.shadow.camera,{left:-9,right:9,top:9,bottom:-9,near:5,far:90});dl.shadow.camera.updateProjectionMatrix();dl.shadow.bias=-.0006;sc.add(dl);
+const fill=new T.DirectionalLight(0x8a70ff,.5);fill.position.set(12,10,22);sc.add(fill);
+const flash=new T.PointLight(0xffa860,0,16);sc.add(flash);
+// ground
+const gt=cvs(256,256,x=>{x.fillStyle='#4a3436';x.fillRect(0,0,256,256);for(let i=0;i<2500;i++){x.fillStyle=`rgba(${Math.random()<.5?'0,0,0':'255,200,160'},${Math.random()*.12})`;x.fillRect(Math.random()*256,Math.random()*256,2+Math.random()*6,1+Math.random()*3);}});
+gt.wrapS=gt.wrapT=T.RepeatWrapping;gt.repeat.set(60,60);
+const gnd=new T.Mesh(new T.PlaneGeometry(600,600),new T.MeshStandardMaterial({map:gt,roughness:1}));gnd.rotation.x=-Math.PI/2;gnd.position.y=-1.7;gnd.receiveShadow=true;sc.add(gnd);
+// board
+const brd=new T.Group();sc.add(brd);
+const stone=MT(0x2c2026,{roughness:.9}),iron=MT(0x1a0c10,{metalness:.7,roughness:.4});
+mk(brd,BX(11.4,1.4,11.4),stone,0,-1,0);
+mk(brd,BX(8.5,.4,8.5),MT(0xff6a1a,{emissive:0xff5a10,emissiveIntensity:1.1}),0,-.3,0);
+for(const[w,d,x,z]of[[9.4,.4,0,4.5],[9.4,.4,0,-4.5],[.4,8.6,4.5,0],[.4,8.6,-4.5,0]])mk(brd,BX(w,.45,d),iron,x,-.2,z);
+const tiles=[];
+for(let i=0;i<64;i++){const r=i>>3,f=i&7,t=mk(brd,BX(.94,.22,.94),MT((r+f)%2?0x3c2a32:0xc4b393,{roughness:.85}),f-3.5,0,r-3.5,0);t.userData.si=i;tiles.push(t);}
+const fires=[];
+for(const[x,z]of[[-4.9,-4.9],[4.9,-4.9],[-4.9,4.9],[4.9,4.9]]){mk(brd,CY(.3,.22,.7),iron,x,.05,z);const f=new T.Mesh(CO(.24,.8),new T.MeshBasicMaterial({color:0xff9a30}));f.position.set(x,.75,z);brd.add(f);const L=new T.PointLight(0xff7a30,1.4,12);L.position.set(x,1.2,z);brd.add(L);fires.push([f,L]);}
+// battlefield props
+const dark=MT(0x1a1118,{metalness:.6,roughness:.5});
+function ring(m){for(;;){const a=rnd(0,6.283),r=rnd(m,m+20),x=Math.sin(a)*r,z=Math.cos(a)*r;if(Math.abs(x)>6.4||Math.abs(z)>6.4)return[x,z];}}
+for(let i=0;i<34;i++){const[x,z]=ring(7),g=new T.Group();mk(g,CY(.035,.035,3.4),dark,0,1.4,0);mk(g,CO(.1,.4),MT(0xb8b4c0,{metalness:.9,roughness:.3}),0,3.3,0);g.position.set(x,-1.7,z);g.rotation.set(rnd(-.3,.3),0,rnd(-.3,.3));sc.add(g);}
+for(let i=0;i<22;i++){const[x,z]=ring(6.5);mk(sc,new T.DodecahedronGeometry(rnd(.3,1.1)),MT(0x2a2025,{roughness:1}),x,-1.5,z).rotation.set(rnd(0,3),rnd(0,3),0);}
+for(let i=0;i<8;i++){const[x,z]=ring(6.5);mk(sc,CY(.6,.6,.08,24),MT(0x6a2a2a,{metalness:.5,roughness:.5}),x,-1.45,z).rotation.set(rnd(-.5,.5),0,rnd(-.5,.5));}
+const cloths=[];
+[[-9,-6],[9,-6],[-11,3],[11,4],[0,-12]].forEach(([x,z])=>{mk(sc,CY(.07,.09,8),dark,x,2.3,z);const c=new T.Mesh(new T.PlaneGeometry(2.4,1.4,14,5),MT(0xa81f2a,{side:T.DoubleSide,roughness:.8}));c.position.set(x+1.3,5.4,z);c.castShadow=true;c.geometry.userData.o=c.geometry.attributes.position.array.slice();sc.add(c);cloths.push(c);});
+const mt=MT(0x2a1a3a,{flatShading:true,roughness:1});
+for(let i=0;i<16;i++){const a=Math.PI+rnd(-1.3,1.3),r=rnd(120,190),h=rnd(25,60);mk(sc,new T.ConeGeometry(rnd(18,34),h,5),mt,Math.sin(a)*r,-1.7+h/2,Math.cos(a)*r,0);}
+const cg=new T.Group(),cm=MT(0x1a1028,{roughness:1});
+mk(cg,new T.SphereGeometry(26,16,8),mt,0,0,0,0).scale.set(1,.45,1);mk(cg,BX(10,12,9),cm,0,14,0,0);
+[[-7,0],[7,0],[0,-5]].forEach(([x,z])=>{mk(cg,CY(2,2.2,20),cm,x,16,z,0);mk(cg,CO(3,6),cm,x,29,z,0);});
+mk(cg,CO(3.4,9),cm,0,24,0,0);cg.position.set(-70,-1.7,-125);sc.add(cg);
+// particles
+const EN=300,ep=new Float32Array(EN*3);for(let i=0;i<EN;i++){ep[i*3]=rnd(-30,30);ep[i*3+1]=rnd(-1,16);ep[i*3+2]=rnd(-30,30);}
+const eg=new T.BufferGeometry();eg.setAttribute('position',new T.BufferAttribute(ep,3));
+const emb=new T.Points(eg,new T.PointsMaterial({color:0xff8a3c,size:.14,transparent:true,opacity:.85,blending:T.AdditiveBlending,depthWrite:false}));emb.frustumCulled=false;sc.add(emb);
+const SN=240,spp=new Float32Array(SN*3).fill(-999),spv=new Float32Array(SN*3),spl=new Float32Array(SN);let sx=0;
+const sg=new T.BufferGeometry();sg.setAttribute('position',new T.BufferAttribute(spp,3));
+const sparks=new T.Points(sg,new T.PointsMaterial({color:0xffc060,size:.22,transparent:true,blending:T.AdditiveBlending,depthWrite:false}));sparks.frustumCulled=false;sc.add(sparks);
+function burst(x,y,z,n,s){for(let k=0;k<n;k++){const i=sx++%SN,a=rnd(0,6.283),u=rnd(.2,1);spp.set([x,y,z],i*3);spv.set([Math.cos(a)*u*s,rnd(.3,1.2)*s,Math.sin(a)*u*s],i*3);spl[i]=rnd(.5,1.1);}}
+const tws=[],tw=(d,f,done)=>tws.push({d,f,done,t:0});
+function wave(x,z,big){const m=new T.Mesh(new T.RingGeometry(.3,.42,40),new T.MeshBasicMaterial({color:0xffb050,transparent:true,blending:T.AdditiveBlending,depthWrite:false,side:T.DoubleSide}));m.rotation.x=-Math.PI/2;m.position.set(x,.2,z);sc.add(m);tw(big?800:500,k=>{m.scale.setScalar(1+k*(big?9:4));m.material.opacity=1-k;},()=>{sc.remove(m);m.geometry.dispose();m.material.dispose();});}
+// human figures
+const pal=w=>w?{rb:MT(0xe9e4d6),tr:MT(0xd2a030,{metalness:.85,roughness:.3}),sk:MT(0xf2d4b4,{roughness:.7}),dk:MT(0x3a2e14),hr:MT(0x4a2f23),ey:MT(0x151515)}:{rb:MT(0x5a1216),tr:MT(0xb8b4c0,{metalness:.85,roughness:.3}),sk:MT(0xb7b1a3,{roughness:.7}),dk:MT(0x120608),hr:MT(0x1a1012),ey:MT(0xff2a1a,{emissive:0xff2a1a,emissiveIntensity:2.5})};
+const PW=pal(1),PB=pal(0);
+const face=(g,P,y)=>{mk(g,SP(.13),P.sk,0,y,0);mk(g,SP(.02),P.ey,-.045,y+.015,.115,0);mk(g,SP(.02),P.ey,.045,y+.015,.115,0);};
+const arms=(g,P,y)=>{for(const s of[-1,1])mk(g,CY(.045,.04,.34),P.rb,s*.22,y,.03).rotation.z=s*.35;};
+function build(t,w){const P=w?PW:PB,g=new T.Group();g.userData.t=t;mk(g,CY(.34,.38,.08),P.dk,0,.04,0);
+ if(t==='p'){mk(g,CY(.12,.27,.5),P.rb,0,.33,0);mk(g,CY(.2,.2,.05),P.tr,0,.42,0);arms(g,P,.58);face(g,P,.74);mk(g,new T.SphereGeometry(.15,16,8,0,6.283,0,1.57),P.tr,0,.76,0);mk(g,CY(.014,.014,1.1),P.tr,.27,.65,.1);mk(g,CO(.045,.16),P.tr,.27,1.28,.1);}
+ if(t==='r'){mk(g,CY(.2,.31,.56),P.rb,0,.34,0);mk(g,BX(.5,.1,.22),P.tr,0,.64,0);arms(g,P,.52);face(g,P,.8);mk(g,CY(.17,.17,.2),P.tr,0,.96,0);for(let i=0;i<6;i++){const a=i*1.047;mk(g,BX(.07,.09,.07),P.tr,Math.sin(a)*.15,1.1,Math.cos(a)*.15);}mk(g,CY(.2,.2,.04),P.tr,-.34,.5,.12).rotation.x=1.57;}
+ if(t==='n'){mk(g,CY(.2,.3,.56),P.rb,0,.34,0);mk(g,SP(.23),P.tr,0,.66,0).scale.set(1,.7,.8);arms(g,P,.55);mk(g,SP(.17),P.tr,0,.9,0);mk(g,BX(.2,.035,.05),P.dk,0,.92,.15);mk(g,CO(.07,.34),P.rb,0,1.12,-.1).rotation.x=-.6;mk(g,BX(.045,.8,.016),MT(0xdfe6ee,{metalness:.9,roughness:.2}),.34,.82,.1);mk(g,BX(.2,.035,.035),P.tr,.34,.46,.1);}
+ if(t==='b'){mk(g,CY(.11,.3,.72),P.rb,0,.42,0);mk(g,BX(.08,.6,.02),P.tr,0,.4,.17);arms(g,P,.6);face(g,P,.9);mk(g,CO(.14,.38),P.tr,0,1.2,0);mk(g,CY(.014,.014,1.35),P.tr,.32,.68,.05);mk(g,new T.TorusGeometry(.07,.016,8,16,4.7),P.tr,.32,1.38,.05);}
+ if(t==='q'){mk(g,CO(.36,.9),P.rb,0,.5,0);mk(g,CY(.1,.1,.05),P.tr,0,.78,0);mk(g,SP(.1),P.rb,0,.84,0);arms(g,P,.7);mk(g,SP(.15),P.hr,0,1,-.05);face(g,P,1.02);mk(g,CY(.11,.14,.09),P.tr,0,1.2,0);for(let i=0;i<5;i++){const a=i*1.2566;mk(g,CO(.028,.12),P.tr,Math.sin(a)*.12,1.31,Math.cos(a)*.12);}}
+ if(t==='k'){mk(g,CO(.38,.95),P.tr,0,.52,-.04);mk(g,CY(.15,.29,.8),P.rb,0,.46,0);mk(g,BX(.54,.1,.22),P.tr,0,.88,0);arms(g,P,.74);face(g,P,1.04);mk(g,CO(.09,.2),P.hr,0,.93,.1).rotation.x=3;mk(g,CY(.12,.15,.12),P.tr,0,1.22,0);mk(g,BX(.035,.2,.035),P.tr,0,1.43,0);mk(g,BX(.12,.035,.035),P.tr,0,1.44,0);mk(g,SP(.06),P.tr,.32,.62,.12);}
+ return g;}
+// game state
+let mode='cpu',turn='w',auto=true,pending=null;
+let clk={w:0,b:0},clockSide=null,started=false,tcb=0,tci=0,lastT=performance.now();
+let help='full',page='login',viewSide='w',fin=false;
+const cfg={mode:'cpu',level:'beginner',tc:'600+0',help:'full',p2:'Player 2',user:null};
+const fmt=ms=>{const s=Math.max(0,ms)/1000;return s<10?'0:0'+(Math.floor(s*10)/10).toFixed(1):Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');};
+const pname=c=>c==='w'?(cfg.user||'You'):(mode==='two'?(cfg.p2||'Player 2'):'Computer ('+LV[level].t.replace(/.*\((.*)\)/,'$1')+')');
+function rclk(){const fl=mode==='two'&&viewSide==='b';for(const[k,c]of[['t',fl?'w':'b'],['m',fl?'b':'w']]){$('tk'+k).textContent=tcb?fmt(clk[c]):'';const e=$('ck'+k);e.classList.toggle('on',clockSide===c&&!over&&page==='play');e.classList.toggle('low',tcb>0&&clk[c]<10000);e.classList.toggle('noclk',!tcb);const nm=pname(c);$('nk'+k).textContent=nm;$('lk'+k).textContent=(c==='w'?'White':'Black')+(mode==='cpu'?(c==='w'?' · You':' · Computer'):'');$('av'+k).textContent=nm[0].toUpperCase();$('av'+k).className='av '+c;}}
+const enough=c=>{const ps=B.slice(0,64).filter(x=>x&&col(x)===c&&x.toLowerCase()!=='k').map(x=>x.toLowerCase());return ps.some(x=>'pqr'.includes(x))||ps.length>=2;};
+function flag(s){over=true;busy=false;clockSide=null;finish(enough(s==='w'?'b':'w')?(s==='w'?'b':'w'):'d');const o=s==='w'?'b':'w',two=mode==='two',S=two?(s==='w'?'White':'Black'):(s==='w'?'You':'The computer'),O=two?(o==='w'?'White':'Black'):(o==='w'?'The computer':'You');
+ say(enough(o)?`<b>Time's up!</b> ${S} ran out of time, so ${O} ${O==='You'?'win':'wins'} on time.`:`<b>Draw.</b> ${S} ran out of time, but ${O} cannot checkmate with the pieces left.`);rclk();}
+const capSq=(b,m)=>{const p=b[m[0]];return b[m[1]]?m[1]:(p&&p.toLowerCase()==='p'&&(m[1]&7)!==(m[0]&7))?(m[0]>>3)*8+(m[1]&7):-1;};
+let gid=0,hm=0,keys=[],B,level='beginner',sel=null,legal=[],hist=[],last=null,over=false,hintMv=null,busy=false,PM=[],shake=0;
+const pcs=new T.Group(),mkg=new T.Group();sc.add(pcs,mkg);
+const kill=o=>o.traverse(c=>{if(c.geometry)c.geometry.dispose()});
+function rebuild(){pcs.children.forEach(kill);pcs.clear();PM=Array(64).fill(null);for(let i=0;i<64;i++)if(B[i]){const g=build(B[i].toLowerCase(),isW(B[i]));g.position.set((i&7)-3.5,.11,(i>>3)-3.5);g.rotation.y=isW(B[i])?Math.PI:0;pcs.add(g);PM[i]=g;}}
+function markers(){mkg.clear();if(sel===null||help==='off')return;for(const m of legal.filter((x,j)=>legal.findIndex(y=>y[1]===x[1])===j)){const t=m[1],cap=capSq(B,m)>=0,risky=help==='full'&&pseudo(make(B,m),turn==='w'?'b':'w').some(x=>x[1]===t);const r=new T.Mesh(cap?new T.RingGeometry(.34,.44,32):new T.CircleGeometry(.16,24),new T.MeshBasicMaterial({color:risky?0xffb030:0x30e080,transparent:true,opacity:.9,depthWrite:false}));r.rotation.x=-Math.PI/2;r.position.set((t&7)-3.5,.14,(t>>3)-3.5);mkg.add(r);}}
+function paint(){const kw=B.indexOf('K'),kb=B.indexOf('k'),cw=chk(B,'w'),cb=chk(B,'b');tiles.forEach((t,i)=>{let c=0,e=0;if(last&&(i===last[0]||i===last[1])){c=0xff3a20;e=.45;}if(hintMv&&(i===hintMv[0]||i===hintMv[1])){c=0x4aa8ff;e=.8;}if(kf&&i===kc){c=0x9fd0ff;e=.7;}if(i===sel){c=0xff8a2a;e=.9;}if((cw&&i===kw)||(cb&&i===kb)){c=0xff1010;e=1;}t.material.emissive.setHex(c);t.material.emissiveIntensity=e;});}
+function impact(x,z,v,dx,dz){burst(x,.8,z,90,6);wave(x,z,1);shake=.45;flash.position.set(x,1.2,z);flash.intensity=14;
+ if(v){const l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,sp=rnd(-1,1)*2;v.userData.busy=1;tw(800,k=>{v.position.set(x+ux*3.2*k,.11+Math.sin(Math.PI*k)*1.8,z+uz*3.2*k);v.rotation.x=-k*5*(uz||1);v.rotation.z=k*sp*3;v.scale.setScalar(Math.max(.05,1-k*k*.9));},()=>{pcs.remove(v);kill(v);});}}
+function move3d(m,cs){const cap=cs>=0,[f,to]=m,g=PM[f],v=cap?PM[cs]:null,x0=(f&7)-3.5,z0=(f>>3)-3.5,x1=(to&7)-3.5,z1=(to>>3)-3.5,hov=B[to]===START[to]?0:.24,DU=cap?1500:750,ez=k=>k*k*(3-2*k);
+ PM[to]=g;PM[f]=null;if(cap&&cs!==to)PM[cs]=null;g.userData.busy=1;let hit=0;
+ if(g.userData.t==='k'&&Math.abs(to-f)===2){const r=f&56,rf=to>f?r+7:r,rt=to>f?r+5:r+3,rk=PM[rf];PM[rt]=rk;PM[rf]=null;if(rk){rk.userData.busy=1;const ax=(rf&7)-3.5,bx=(rt&7)-3.5,zz=(r>>3)-3.5;tw(DU*.8,k=>rk.position.set(ax+(bx-ax)*k,.11+Math.sin(Math.PI*k)*.6,zz),()=>{rk.userData.busy=0;});}}
+ tw(DU,k=>{let u,y,s=0;
+  if(!cap){u=ez(k);y=Math.sin(Math.PI*k)*1.3+(k>.88?Math.sin((k-.88)/.12*Math.PI)*.1:0);}
+  else{u=k<.2?0:k<.6?ez((k-.2)/.4):1;y=k<.2?ez(k/.2)*1.9:k<.6?1.9:k<.7?1.9*(1-ez((k-.6)/.1)):Math.sin((k-.7)/.3*Math.PI)*.5;s=k>.58&&k<.78?Math.sin((k-.58)/.2*Math.PI)*.18:0;if(k>=.65&&!hit){hit=1;impact(x1,z1,v,x1-x0,z1-z0);}}
+  g.position.set(x0+(x1-x0)*u,.11+hov*k+y,z0+(z1-z0)*u);g.scale.set(1+s,1-s,1+s);},
+  ()=>{g.userData.busy=0;g.scale.set(1,1,1);if(!cap){wave(x1,z1,0);burst(x1,.3,z1,14,2);}
+   if(PM[to]===g&&g.userData.t!==B[to].toLowerCase()){pcs.remove(g);kill(g);const n=build(B[to].toLowerCase(),isW(B[to]));n.position.copy(g.position);n.rotation.y=g.rotation.y;pcs.add(n);PM[to]=n;}});
+ return DU;}
+function init(){gid++;turn='w';viewSide='w';$('res').hidden=true;fin=false;const tv=cfg.tc.split('+');tcb=(+tv[0]||0)*1000;tci=(+tv[1]||0)*1000;clk={w:tcb,b:tcb};clockSide=null;started=false;rclk();hm=0;keys=[];B=START.slice();hist=[];sel=null;legal=[];last=null;over=false;hintMv=null;busy=false;rebuild();markers();paint();say(mode==='two'?'<b>Two players.</b> White moves first, then Black. Take turns on this screen. The view turns to face whoever is moving; use the Auto-turn button to switch that off.':'<b>Welcome.</b> You play White and move first. Click one of your pieces to see how it moves. Drag to rotate the view, scroll or pinch to zoom, right-drag or two fingers to pan.');if(mode==='two'&&auto)aim('w');}
+function aim(s){viewSide=s;const t=s==='w'?0:Math.PI;thT=t+6.2832*Math.round((thT-t)/6.2832);txT=tzT=0;}
+function easy(ms){ms=ms.filter(m=>!m[2]||m[2]==='q');const cs=ms.filter(m=>B[m[1]]);if(cs.length&&Math.random()<.75){const top=Math.max(...cs.map(m=>capv(B,m)));const bs=cs.filter(m=>capv(B,m)===top);return bs[Math.random()*bs.length|0];}return ms[Math.random()*ms.length|0];}
+function endCheck(c){if(legalMoves(B,c).length)return false;over=true;finish(chk(B,c)?(c==='b'?'w':'b'):'d');
+ say(chk(B,c)?(mode==='two'?`<b>Checkmate!</b> ${c==='w'?'Black':'White'} wins.`:c==='b'?'<b>Checkmate! You win.</b> The Black King is trapped.':'<b>Checkmate.</b> The computer wins. Try Undo to find what you missed.'):'<b>Stalemate.</b> The side to move has no legal move but is not in check, so it is a draw.');return true;}
+function drawEnd(side){const k=B.map(x=>x||'.').join('')+side;keys.push(k);const o=B.slice(0,64).filter(x=>x&&x.toLowerCase()!=='k');
+ const why=!o.length||(o.length===1&&/[nb]/i.test(o[0]))?'insufficient material: neither side can force checkmate':hm>=100?'the 50-move rule: no pawn move or capture in 50 moves each':keys.filter(x=>x===k).length>=3?'threefold repetition':'';
+ if(why){over=true;finish('d');say(`<b>Draw</b> by ${why}.`);}return !!why;}
+function play(m){hist.push({B,last,hm,keys:keys.slice(),turn,clk:{...clk},started});if(started&&tcb)clk[col(B[m[0]])]+=tci;started=true;clockSide=null;const mv=B[m[0]],cs=capSq(B,m),cap=cs>=0?B[cs]:null,sd=col(mv),nm2=mode==='two'?(sd==='w'?"White's":"Black's"):'Your';hm=(mv.toLowerCase()==='p'||cap)?0:hm+1;B=make(B,m);last=m;sel=null;legal=[];markers();paint();
+ let msg=cap?`${nm2} ${NAME[mv.toLowerCase()]} strikes down the ${NAME[cap.toLowerCase()]}!`:`${NAME[mv.toLowerCase()]} to ${sqn(m[1])}.`;
+ if(mv.toLowerCase()==='k'&&Math.abs(m[1]-m[0])===2)msg=nm2+' King castles for safety.';else if(cs>=0&&cs!==m[1])msg+=' (en passant)';
+ if(m[2])msg+=` Promoted to a ${NAME[m[2]]}!`;
+ if(help!=='off'){const a=pseudo(B,sd==='w'?'b':'w').filter(x=>x[1]===m[1]).map(x=>V[B[x[0]].toLowerCase()]);if(a.length&&Math.min(...a)<V[mv.toLowerCase()])msg+=' <b>Careful:</b> a cheaper piece can capture it now.';}
+ if(mode==='two'){const o=sd==='w'?'b':'w',G2=gid,d=move3d(m,cs);busy=true;
+  if(endCheck(o)||drawEnd(o)){setTimeout(()=>{if(G2===gid)busy=false},d+100);return;}
+  turn=o;const nm=o==='w'?'White':'Black';
+  say(`${msg}<br><b>${nm} to move.</b>${chk(B,o)?` <b>${nm} is in check:</b> defend your King!`:''}`);
+  setTimeout(()=>{if(G2===gid&&!over){busy=false;if(auto)aim(o);clockSide=o;}},d+350);return;}
+ const G=gid,d=move3d(m,cs);busy=true;if(endCheck('b')||drawEnd('b')){setTimeout(()=>{if(G===gid)busy=false},d+100);return;}
+ say(msg+' Computer is thinking...');
+ setTimeout(async()=>{if(G!==gid)return;clockSide='b';const ms=legalMoves(B,'b'),am=level==='beginner'?easy(ms):await think(B,'b',level==='medium'?2:3);if(G!==gid||over)return;clockSide=null;
+  const p=B[am[0]],cs2=capSq(B,am),c2=cs2>=0?B[cs2]:null;hm=(p.toLowerCase()==='p'||c2)?0:hm+1;B=make(B,am);last=am;const d2=move3d(am,cs2);paint();if(tcb)clk.b+=tci;setTimeout(()=>{if(G===gid&&!over){busy=false;clockSide='w';}},d2+100);if(endCheck('w')||drawEnd('w'))return;
+  let r=`${msg}<br>Computer: ${NAME[p.toLowerCase()]} ${sqn(am[0])} to ${sqn(am[1])}${c2?`, striking down your ${NAME[c2.toLowerCase()]}`:''}.`;
+  if(chk(B,'w'))r+=' <b>You are in check:</b> move your King, block, or capture the attacker.';
+  say(r);},d+300);}
+function click(i){if(over||busy)return;hintMv=null;pending=null;const p=B[i];
+ if(sel!==null){const ms=legal.filter(x=>x[1]===i);if(ms.length){if(ms[0][2]){pending=ms;say('<b>Promote your pawn to:</b><br>'+ms.map(x=>`<button data-pr="${x[2]}">${NAME[x[2]]}</button>`).join(' '));return;}return play(ms[0]);}}
+ if(p&&col(p)===turn){sel=i;legal=legalMoves(B,turn).filter(m=>m[0]===i);const t=p.toLowerCase();say(`<b>${NAME[t]}.</b> ${help==='off'?'':HOW[t]}${legal.length?'':' It has no legal moves right now.'}`);}
+ else{sel=null;legal=[];if(mode==='two'&&p)say(`It is ${turn==='w'?'White':'Black'}'s turn.`);}
+ markers();paint();}
+// input
+let th=0,ph=.95,rad=12.5,tx=0,tz=0,txT=0,tzT=0,thT=th,phT=ph,radT=rad,down=null;
+const cv=$('c'),ray=new T.Raycaster(),m2=new T.Vector2();
+function pick(e){const r=cv.getBoundingClientRect();m2.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(m2,cam);const h=ray.intersectObjects([...tiles,pcs],true)[0];if(!h)return;let o=h.object;while(o&&o.userData.si===undefined&&!o.userData.t)o=o.parent;if(o)click(o.userData.si!==undefined?o.userData.si:PM.indexOf(o));}
+const zm=r=>Math.min(45,Math.max(3.5,r)),cl=v=>Math.min(6,Math.max(-6,v));
+const ptrs=new Map(),pd=()=>{const[a,b]=[...ptrs.values()];return Math.hypot(a.x-b.x,a.y-b.y)||1;},cen=()=>{const[a,b]=[...ptrs.values()];return{x:(a.x+b.x)/2,y:(a.y+b.y)/2};};let pinch=0,pc=null;
+const pan=(dx,dy)=>{const k=radT*.0016,c=Math.cos(th),n=Math.sin(th);txT=cl(txT-c*dx*k-n*dy*k);tzT=cl(tzT+n*dx*k-c*dy*k);};
+cv.onpointerdown=e=>{if(page!=='play')return;kf=false;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});cv.setPointerCapture(e.pointerId);if(ptrs.size===1)down={x:e.clientX,y:e.clientY,mv:0,pan:e.button===2||e.shiftKey};else{down=null;pinch=pd();pc=cen();}};
+cv.onpointermove=e=>{const p=ptrs.get(e.pointerId);if(!p)return;p.x=e.clientX;p.y=e.clientY;
+ if(ptrs.size===2){const d=pd(),c=cen();radT=zm(radT*pinch/d);if(pc)pan(c.x-pc.x,c.y-pc.y);pinch=d;pc=c;return;}
+ if(!down)return;const dx=e.clientX-down.x,dy=e.clientY-down.y;down.mv+=Math.abs(dx)+Math.abs(dy);down.x=e.clientX;down.y=e.clientY;
+ if(down.mv>6){if(down.pan)pan(dx,dy);else{thT-=dx*.006;phT=Math.min(1.5,Math.max(.05,phT-dy*.005));}}};
+cv.onpointerup=e=>{ptrs.delete(e.pointerId);if(down&&down.mv<=6&&!down.pan&&e.button===0&&!ptrs.size)pick(e);down=null;pinch=0;pc=null;};
+cv.onpointercancel=e=>{ptrs.delete(e.pointerId);down=null;pinch=0;pc=null;};
+cv.oncontextmenu=e=>e.preventDefault();
+let kc=52,kf=false;const sqd=i=>sqn(i)+': '+(B[i]?(isW(B[i])?'your ':'enemy ')+NAME[B[i].toLowerCase()]:'empty')+(legal.some(m=>m[1]===i)?', legal move':'');
+cv.onfocus=()=>{kf=cv.matches(':focus-visible');if(kf){$('sr').textContent=sqd(kc);paint();}};cv.onblur=()=>{kf=false;paint();};
+cv.onkeydown=e=>{const d={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1]}[e.key];
+ if(d&&e.shiftKey){e.preventDefault();thT-=d[1]*.35;phT=Math.min(1.5,Math.max(.05,phT-d[0]*.2));}
+ else if(d){e.preventDefault();kf=true;const r=(kc>>3)+d[0],f=(kc&7)+d[1];if(ok(r,f))kc=r*8+f;$('sr').textContent=sqd(kc);paint();}
+ else if(e.key==='Enter'||e.key===' '){e.preventDefault();kf=true;click(kc);}
+ else if(e.key==='Escape'){sel=null;legal=[];markers();paint();}
+ else if(e.key==='+'||e.key==='='){radT=zm(radT*.85);}else if(e.key==='-'||e.key==='_'){radT=zm(radT/.85);}};
+cv.onwheel=e=>{if(page!=='play')return;e.preventDefault();radT=zm(radT*Math.exp(e.deltaY*.0012));};
+$('cx').onclick=e=>{const q=e.target.dataset.pr;if(q&&pending){const m=pending.find(x=>x[2]===q);pending=null;if(m)play(m);}};
+$('at').onclick=()=>{auto=!auto;$('at').textContent='Auto-turn: '+(auto?'on':'off');if(auto&&mode==='two')aim(turn);};
+$('new').onclick=()=>apply();
+$('zi').onclick=()=>{radT=zm(radT*.8)};$('zo').onclick=()=>{radT=zm(radT/.8)};$('rl').onclick=()=>{thT+=Math.PI/4};$('rr').onclick=()=>{thT-=Math.PI/4};
+$('rv').onclick=()=>{txT=tzT=0;thT=Math.round(th/6.2832)*6.2832;phT=.95;radT=cam.aspect<.8?18:12.5;};
+$('undo').onclick=()=>{if(busy||!hist.length)return;{const h=hist.pop();({B,last,hm,keys,turn}=h);clk=h.clk;started=h.started;clockSide=started?turn:null;}if(mode==='two'&&auto)aim(turn);sel=null;legal=[];over=false;hintMv=null;rebuild();markers();paint();say('Move undone. Try a different idea.');};
+$('hint').onclick=async()=>{if(busy||over||help==='off')return;const g0=gid;hintMv=await think(B,turn,2);if(g0!==gid||over){hintMv=null;return;}if(hintMv){const p=B[hintMv[0]];say(`<b>Hint:</b> try your ${NAME[p.toLowerCase()]} from ${sqn(hintMv[0])} to ${sqn(hintMv[1])}.`);}paint();};
+function rs(){R.setSize(innerWidth,innerHeight,false);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();vo();}
+addEventListener('resize',rs);rs();if(cam.aspect<.8)rad=radT=18;
+// render loop
+let t0=performance.now();
+function loop(now){requestAnimationFrame(loop);const dt=Math.min((now-t0)/1000,.05),t=now/1000;t0=now;
+ for(let i=tws.length;i--;){const w=tws[i];w.t+=dt*1000;const k=Math.min(w.t/w.d,1);w.f(k);if(k>=1){tws.splice(i,1);if(w.done)w.done();}}
+ if(page!=='play'){thT+=dt*.06;phT=.95;radT=cam.aspect<.9?19:15;txT=tzT=0;}
+ th+=(thT-th)*.12;ph+=(phT-ph)*.12;rad+=(radT-rad)*.12;tx+=(txT-tx)*.12;tz+=(tzT-tz)*.12;
+ const sh=RM?0:shake;cam.position.set(rad*Math.sin(ph)*Math.sin(th)+tx+rnd(-sh,sh),rad*Math.cos(ph)+rnd(-sh,sh),rad*Math.sin(ph)*Math.cos(th)+tz+rnd(-sh,sh));shake*=.9;cam.lookAt(tx,.4,tz);
+ for(let i=0;i<64;i++){const g=PM[i];if(g&&!g.userData.busy){const tg=.11+(B[i]===START[i]?0:.24+Math.sin(t*2+i)*.05*(RM?0:1))+(i===sel?.4:0);g.position.y+=(tg-g.position.y)*.15;}}
+ mkg.children.forEach((c,i)=>c.scale.setScalar(1+Math.sin(t*5+i)*.12));
+ fires.forEach(([f,L],i)=>{const k=1+Math.sin(t*9+i*2)*.12+Math.sin(t*23+i)*.08;f.scale.set(1,k,1);L.intensity=1.4*k;});
+ flash.intensity*=.88;
+ cloths.forEach((c,j)=>{const p=c.geometry.attributes.position.array,o=c.geometry.userData.o;for(let i=0;i<p.length;i+=3)p[i+2]=Math.sin(o[i]*2.6+t*3+j)*.22*((o[i]+1.2)/2.4);c.geometry.attributes.position.needsUpdate=true;c.geometry.computeVertexNormals();});
+ for(let i=0;i<EN;i++){ep[i*3+1]+=dt*(.5+(i%5)*.15);ep[i*3]+=Math.sin(t+i)*dt*.3;if(ep[i*3+1]>16)ep[i*3+1]=-1;}eg.attributes.position.needsUpdate=true;
+ for(let i=0;i<SN;i++)if(spl[i]>0){spl[i]-=dt;spv[i*3+1]-=9*dt;for(let a=0;a<3;a++)spp[i*3+a]+=spv[i*3+a]*dt;if(spl[i]<=0)spp[i*3+1]=-999;}sg.attributes.position.needsUpdate=true;
+ R.render(sc,cam);}
+// accounts, pages and setup
+const LS={get:k=>{try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const users=()=>LS.get('cs_users')||{};
+const sha=async s=>{try{const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return[...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join('');}catch(e){let h=5381;for(const ch of s)h=(h*33^ch.charCodeAt(0))>>>0;return'x'+h;}};
+const saveCfg=()=>LS.set('cs_cfg',{mode:cfg.mode,level:cfg.level,tc:cfg.tc,help:cfg.help,p2:cfg.p2});
+Object.assign(cfg,LS.get('cs_cfg')||{});
+{const ss=LS.get('cs_session');if(ss&&(ss==='Guest'||users()[String(ss).toLowerCase()]))cfg.user=ss;}
+let signup=false,ingame=false,rsT=0, adminLoginMode=false;
+const lerr=m=>{$('lerr').textContent=m;};
+function ltab(su){signup=su;adminLoginMode=false;$('tl').classList.toggle('on',!su);$('ts').classList.toggle('on',su);$('ta').classList.remove('on');$('lcw').hidden=!su;$('lgo').textContent=su?'Create account':'Log in';$('lp').autocomplete=su?'new-password':'current-password';$('adminNote').hidden=true;lerr('');}
+function adminTab(){adminLoginMode=true;signup=false;$('ta').classList.add('on');$('tl').classList.remove('on');$('ts').classList.remove('on');$('lcw').hidden=true;$('lgo').textContent='Admin Login';$('lp').autocomplete='current-password';$('adminNote').hidden=false;lerr('');}
+function signin(n, isAdmin){cfg.user=n;LS.set('cs_session',n);if(isAdmin)LS.set('cs_admin',true);else LS.removeItem('cs_admin');$('lp').value='';$('lc').value='';nav('setup');}
+async function adminSignin(n,p){
+  try{
+    const res=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:n,password:p})});
+    const data=await res.json();
+    if(!res.ok)return lerr(data.error||'Login failed');
+    if(!data.is_admin)return lerr('Admin access required');
+    signin(n,true);
+  }catch(e){lerr('Connection error');}
+}
+$('lf').onsubmit=async e=>{e.preventDefault();const n=$('lu').value.trim(),p=$('lp').value,k=n.toLowerCase(),U=users();
+ if(!/^[A-Za-z0-9_ ]{3,16}$/.test(n))return lerr('Username: 3 to 16 letters, numbers, spaces or underscores.');
+ if(p.length<6)return lerr('Password must be at least 6 characters.');
+ if(adminLoginMode){return adminSignin(n,p);}
+ if(signup){if(p!==$('lc').value)return lerr('The two passwords do not match.');if(U[k])return lerr('That username is already taken on this device.');
+  const salt=Math.random().toString(36).slice(2)+Date.now().toString(36);U[k]={name:n,salt,h:await sha(salt+p),st:{w:0,d:0,l:0}};LS.set('cs_users',U);signin(n);}
+ else{if(!U[k]||U[k].h!==await sha(U[k].salt+p))return lerr('Wrong username or password.');signin(U[k].name);}};
+$('tl').onclick=()=>ltab(false);$('ts').onclick=()=>ltab(true);$('ta').onclick=()=>adminTab();
+$('gst').onclick=()=>signin('Guest');
+$('lo').onclick=()=>{cfg.user=null;LS.set('cs_session',null);LS.removeItem('cs_admin');nav('login');};
+function paintSetup(){document.querySelectorAll('#p-setup [data-o],#p-setup [data-l],#p-setup [data-t],#p-setup [data-h]').forEach(b=>{const d=b.dataset,on=d.o?d.o===cfg.mode:d.l?d.l===cfg.level:d.t?d.t===cfg.tc:d.h===cfg.help;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);});
+ $('lvbox').hidden=cfg.mode!=='cpu';$('p2box').hidden=cfg.mode!=='two';$('p2n').value=cfg.p2==='Player 2'?'':cfg.p2;$('uwho').textContent=cfg.user||'';
+ const u=cfg.user&&users()[cfg.user.toLowerCase()];$('rec').textContent=u?`Your record against the computer: ${u.st.w} wins, ${u.st.d} draws, ${u.st.l} losses.`:'Guest games are not saved.';}
+$('p-setup').onclick=e=>{const b=e.target.closest&&e.target.closest('button'),d=b&&b.dataset;if(!d)return;if(d.o)cfg.mode=d.o;if(d.l)cfg.level=d.l;if(d.t)cfg.tc=d.t;if(d.h)cfg.help=d.h;saveCfg();paintSetup();};
+function apply(){mode=cfg.mode;level=cfg.level;help=cfg.help;ingame=true;$('at').hidden=mode!=='two';$('hint').disabled=help==='off';init();$('rv').onclick();}
+$('startbtn').onclick=()=>{cfg.p2=$('p2n').value.trim().slice(0,16)||'Player 2';saveCfg();apply();nav('play');};
+function vo(){if(page!=='play'&&innerWidth>900)cam.setViewOffset(innerWidth,innerHeight,-innerWidth*.2,0,innerWidth,innerHeight);else cam.clearViewOffset();}
+function nav(p){if(p!=='login'&&!cfg.user)p='login';if(p==='play'&&!ingame)p='setup';const was=page;page=p;for(const x of['login','setup','play'])$('p-'+x).hidden=x!==p;
+ if(was==='play'&&p!=='play'){ingame=false;mode=cfg.mode;level=cfg.level;help=cfg.help;init();}
+ if(p==='setup')paintSetup();if(location.hash!=='#/'+p)location.hash='/'+p;vo();}
+const route=()=>{let p=(location.hash||'').slice(2);if(!['login','setup','play'].includes(p))p='login';if(p==='login'&&cfg.user)p='setup';nav(p);};
+addEventListener('hashchange',route);
+function stat(k){const U=users(),u=cfg.user&&U[cfg.user.toLowerCase()];if(u){u.st[k]++;LS.set('cs_users',U);}}
+function finish(r){if(fin)return;fin=true;const cpu=mode==='cpu';if(cpu)stat(r==='w'?'w':r==='b'?'l':'d');
+ const t=r==='d'?'Draw':cpu?(r==='w'?'Victory!':'Defeat'):(r==='w'?cfg.user:cfg.p2)+' wins!';
+ setTimeout(()=>{if(page==='play'&&over){$('rtt').textContent=t;$('rsb').innerHTML=$('cx').innerHTML;$('res').hidden=false;}},1800);}
+$('rsg').onclick=()=>{if(over||page!=='play')return;if(!rsT){$('rsg').textContent='Sure? Click again';rsT=setTimeout(()=>{rsT=0;$('rsg').textContent='Resign';},3000);return;}
+ clearTimeout(rsT);rsT=0;$('rsg').textContent='Resign';const s=mode==='two'?turn:'w',o=s==='w'?'b':'w';over=true;busy=false;clockSide=null;
+ say(mode==='two'?`<b>${s==='w'?'White':'Black'} resigned.</b> ${o==='w'?'White':'Black'} wins.`:'<b>You resigned.</b> The computer wins.');finish(o);rclk();};
+$('rm').onclick=()=>apply();$('rsu').onclick=()=>{$('res').hidden=true;nav('setup');};$('rvw').onclick=()=>{$('res').hidden=true;};$('mn').onclick=()=>nav('setup');
+
+// ============ ADMIN PANEL LOGIC ============
+let adminSocket = null;
+let adminTab = 'dashboard';
+let adminData = { users: [], rooms: [], games: [], tournaments: [], announcements: [], stats: {} };
+
+const API_BASE = '';
+
+async function adminFetch(path, options = {}) {
+  const userId = cfg.user ? (users()[cfg.user.toLowerCase()]?.id) : null;
+  if (!userId) throw new Error('Not authenticated');
+  const res = await fetch(API_BASE + path, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    body: options.body ? JSON.stringify({ ...JSON.parse(options.body), userId }) : JSON.stringify({ userId })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Request failed' }));
+    throw new Error(err.error || 'Request failed');
+  }
+  return res.json();
+}
+
+async function loadAdminStats() {
+  try {
+    adminData.stats = await adminFetch('/api/admin/stats');
+    renderAdminDashboard();
+  } catch (e) { console.error(e); }
+}
+
+async function loadAdminUsers() {
+  try {
+    adminData.users = await adminFetch('/api/admin/users');
+    renderAdminUsers();
+  } catch (e) { console.error(e); }
+}
+
+async function loadAdminPendingUsers() {
+  try {
+    const pending = await adminFetch('/api/admin/users/pending');
+    renderAdminPendingUsers(pending);
+  } catch (e) { console.error(e); }
+}
+
+async function loadAdminRooms() {
+  try {
+    adminData.rooms = await adminFetch('/api/admin/rooms');
+    renderAdminRooms();
+  } catch (e) { console.error(e); }
+}
+
+async function loadAdminGames() {
+  try {
+    adminData.games = await adminFetch('/api/admin/games');
+    renderAdminGames();
+  } catch (e) { console.error(e); }
+}
+
+async function loadAdminTournaments() {
+  try {
+    adminData.tournaments = await adminFetch('/api/admin/tournaments');
+    renderAdminTournaments();
+  } catch (e) { console.error(e); }
+}
+
+async function loadAdminAnnouncements() {
+  try {
+    adminData.announcements = await adminFetch('/api/admin/announcements');
+    renderAdminAnnouncements();
+  } catch (e) { console.error(e); }
+}
+
+function approveUser(userId) {
+  adminFetch('/api/admin/users/' + userId + '/approve', { method: 'PUT' })
+    .then(() => { loadAdminUsers(); loadAdminPendingUsers(); loadAdminStats(); })
+    .catch(e => alert('Failed: ' + e.message));
+}
+
+function rejectUser(userId) {
+  adminFetch('/api/admin/users/' + userId + '/reject', { method: 'PUT' })
+    .then(() => { loadAdminUsers(); loadAdminPendingUsers(); loadAdminStats(); })
+    .catch(e => alert('Failed: ' + e.message));
+}
+
+function toggleAdminStatus(userId, isAdmin) {
+  adminFetch('/api/admin/users/' + userId + '/admin', { method: 'PUT', body: JSON.stringify({ isAdmin }) })
+    .then(() => loadAdminUsers())
+    .catch(e => alert('Failed: ' + e.message));
+}
+
+function createTournament() {
+  const name = prompt('Tournament name:');
+  if (!name) return;
+  const startTime = prompt('Start time (ISO format, e.g., 2024-12-25T10:00:00Z):');
+  if (!startTime) return;
+  const timeControl = prompt('Time control (e.g., 600+0):', '600+0');
+  if (!timeControl) return;
+  const description = prompt('Description (optional):') || '';
+  const maxPlayers = parseInt(prompt('Max players:', '64')) || 64;
+  const endTime = prompt('End time (ISO format, optional):') || null;
+
+  adminFetch('/api/admin/tournaments', {
+    method: 'POST',
+    body: JSON.stringify({ name, description, startTime, endTime, timeControl, maxPlayers })
+  }).then(() => loadAdminTournaments()).catch(e => alert('Failed: ' + e.message));
+}
+
+function updateTournamentStatus(id, status) {
+  adminFetch('/api/admin/tournaments/' + id + '/status', { method: 'PUT', body: JSON.stringify({ status }) })
+    .then(() => loadAdminTournaments())
+    .catch(e => alert('Failed: ' + e.message));
+}
+
+function deleteTournament(id) {
+  if (!confirm('Delete this tournament?')) return;
+  adminFetch('/api/admin/tournaments/' + id, { method: 'DELETE' })
+    .then(() => loadAdminTournaments())
+    .catch(e => alert('Failed: ' + e.message));
+}
+
+function createAnnouncement() {
+  const title = prompt('Announcement title:');
+  if (!title) return;
+  const content = prompt('Content:');
+  if (!content) return;
+  const type = prompt('Type (info/warning/success/tournament):', 'info') || 'info';
+  const targetAudience = prompt('Target audience (all/registered/admins):', 'all') || 'all';
+  const expiresAt = prompt('Expires at (ISO format, optional):') || null;
+
+  adminFetch('/api/admin/announcements', {
+    method: 'POST',
+    body: JSON.stringify({ title, content, type, targetAudience, expiresAt })
+  }).then(() => loadAdminAnnouncements()).catch(e => alert('Failed: ' + e.message));
+}
+
+function updateAnnouncement(id) {
+  const a = adminData.announcements.find(x => x.id === id);
+  if (!a) return;
+  const title = prompt('Title:', a.title);
+  if (title === null) return;
+  const content = prompt('Content:', a.content);
+  if (content === null) return;
+  const type = prompt('Type:', a.type) || a.type;
+  const targetAudience = prompt('Target audience:', a.target_audience) || a.target_audience;
+  const expiresAt = prompt('Expires at (ISO, empty to clear):', a.expires_at || '') || null;
+  const isActive = confirm('Active?');
+
+  adminFetch('/api/admin/announcements/' + id, {
+    method: 'PUT',
+    body: JSON.stringify({ title, content, type, targetAudience, expiresAt, isActive })
+  }).then(() => loadAdminAnnouncements()).catch(e => alert('Failed: ' + e.message));
+}
+
+function deleteAnnouncement(id) {
+  if (!confirm('Delete this announcement?')) return;
+  adminFetch('/api/admin/announcements/' + id, { method: 'DELETE' })
+    .then(() => loadAdminAnnouncements())
+    .catch(e => alert('Failed: ' + e.message));
+}
+
+function renderAdminDashboard() {
+  const s = adminData.stats;
+  return `
+    <div class="grid3" style="margin-bottom:20px">
+      <div class="glass pad" style="text-align:center"><div style="font-size:2.5rem;font-weight:700;color:#ff8a2a">${s.total_users || 0}</div><div style="color:#cdb7ad;font-size:.9rem">Total Users</div></div>
+      <div class="glass pad" style="text-align:center"><div style="font-size:2.5rem;font-weight:700;color:#ffd700">${s.pending_users || 0}</div><div style="color:#cdb7ad;font-size:.9rem">Pending Approval</div></div>
+      <div class="glass pad" style="text-align:center"><div style="font-size:2.5rem;font-weight:700;color:#4ade80">${s.approved_users || 0}</div><div style="color:#cdb7ad;font-size:.9rem">Approved Users</div></div>
+      <div class="glass pad" style="text-align:center"><div style="font-size:2.5rem;font-weight:700;color:#60a5fa">${s.total_rooms || 0}</div><div style="color:#cdb7ad;font-size:.9rem">Total Rooms</div></div>
+      <div class="glass pad" style="text-align:center"><div style="font-size:2.5rem;font-weight:700;color:#f472b6">${s.active_rooms || 0}</div><div style="color:#cdb7ad;font-size:.9rem">Active Games</div></div>
+      <div class="glass pad" style="text-align:center"><div style="font-size:2.5rem;font-weight:700;color:#a78bfa">${s.waiting_rooms || 0}</div><div style="color:#cdb7ad;font-size:.9rem">Waiting Rooms</div></div>
+      <div class="glass pad" style="text-align:center"><div style="font-size:2.5rem;font-weight:700;color:#fb923c">${s.total_games || 0}</div><div style="color:#cdb7ad;font-size:.9rem">Total Games</div></div>
+      <div class="glass pad" style="text-align:center"><div style="font-size:2.5rem;font-weight:700;color:#22d3ee">${s.total_tournaments || 0}</div><div style="color:#cdb7ad;font-size:.9rem">Tournaments</div></div>
+      <div class="glass pad" style="text-align:center"><div style="font-size:2.5rem;font-weight:700;color:#f87171">${s.active_tournaments || 0}</div><div style="color:#cdb7ad;font-size:.9rem">Active Tournaments</div></div>
+      <div class="glass pad" style="text-align:center"><div style="font-size:2.5rem;font-weight:700;color:#4ade80">${s.active_announcements || 0}</div><div style="color:#cdb7ad;font-size:.9rem">Active Announcements</div></div>
+    </div>
+    <div class="glass pad">
+      <h3 style="margin-top:0">Quick Actions</h3>
+      <div class="btns">
+        <button class="cta" onclick="createTournament()">➕ Create Tournament</button>
+        <button class="cta" onclick="createAnnouncement()">📢 Create Announcement</button>
+        <button class="ghost" onclick="loadAdminPendingUsers()">👥 Review Pending Users</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderAdminUsers() {
+  let html = '<div class="glass pad" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.9rem"><thead><tr style="border-bottom:1px solid rgba(255,120,60,.3);text-align:left"><th style="padding:10px">Username</th><th style="padding:10px">Status</th><th style="padding:10px">Admin</th><th style="padding:10px">Created</th><th style="padding:10px">Last Login</th><th style="padding:10px">Actions</th></tr></thead><tbody>';
+  for (const u of adminData.users) {
+    const created = new Date(u.created_at * 1000).toLocaleDateString();
+    const lastLogin = u.last_login ? new Date(u.last_login * 1000).toLocaleDateString() : 'Never';
+    const statusColor = u.registration_status === 'approved' ? '#4ade80' : u.registration_status === 'pending' ? '#fbbf24' : '#f87171';
+    html += `<tr style="border-bottom:1px solid rgba(255,120,60,.1)">
+      <td style="padding:10px"><b>${u.username}</b></td>
+      <td style="padding:10px"><span style="color:${statusColor};font-weight:600;text-transform:capitalize">${u.registration_status}</span></td>
+      <td style="padding:10px"><label style="display:flex;align-items:center;gap:6px"><input type="checkbox" ${u.is_admin ? 'checked' : ''} onchange="toggleAdminStatus('${u.id}', this.checked)"><span>Admin</span></label></td>
+      <td style="padding:10px;color:#cdb7ad">${created}</td>
+      <td style="padding:10px;color:#cdb7ad">${lastLogin}</td>
+      <td style="padding:10px">
+        <div class="btns" style="gap:4px">
+          ${u.registration_status === 'pending' ? `<button class="cta" style="padding:4px 10px;font-size:.8rem" onclick="approveUser('${u.id}')">✅ Approve</button><button class="ghost" style="padding:4px 10px;font-size:.8rem" onclick="rejectUser('${u.id}')">❌ Reject</button>` : ''}
+        </div>
+      </td>
+    </tr>`;
+  }
+  html += '</tbody></table></div>';
+  return html;
+}
+
+function renderAdminPendingUsers(pending) {
+  if (!pending.length) return '<div class="glass pad" style="text-align:center;color:#cdb7ad">No pending registrations</div>';
+  let html = '<div class="glass pad"><h3 style="margin-top:0">Pending Approvals (' + pending.length + ')</h3>';
+  for (const u of pending) {
+    const created = new Date(u.created_at * 1000).toLocaleString();
+    html += `<div class="glass" style="margin:8px 0;padding:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div><b>${u.username}</b><br><small style="color:#cdb7ad">Requested: ${created}</small></div>
+      <div class="btns"><button class="cta" onclick="approveUser('${u.id}')">✅ Approve</button><button class="ghost" onclick="rejectUser('${u.id}')">❌ Reject</button></div>
+    </div>`;
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderAdminRooms() {
+  let html = '<div class="glass pad" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85rem"><thead><tr style="border-bottom:1px solid rgba(255,120,60,.3);text-align:left"><th style="padding:8px">Code</th><th style="padding:8px">Host</th><th style="padding:8px">Guest</th><th style="padding:8px">Status</th><th style="padding:8px">Time Control</th><th style="padding:8px">Created</th><th style="padding:8px">Updated</th></tr></thead><tbody>';
+  for (const r of adminData.rooms) {
+    const created = new Date(r.created_at * 1000).toLocaleString();
+    const updated = new Date(r.updated_at * 1000).toLocaleString();
+    const statusColor = r.status === 'playing' ? '#4ade80' : r.status === 'waiting' ? '#fbbf24' : '#f87171';
+    const guest = r.guest_name || (r.guest_id ? 'Connected' : 'Waiting...');
+    html += `<tr style="border-bottom:1px solid rgba(255,120,60,.1)">
+      <td style="padding:8px;font-family:monospace;font-weight:700">${r.code}</td>
+      <td style="padding:8px">${r.host_name}</td>
+      <td style="padding:8px">${guest}</td>
+      <td style="padding:8px"><span style="color:${statusColor};font-weight:600;text-transform:capitalize">${r.status}</span></td>
+      <td style="padding:8px;font-family:monospace">${r.time_control}</td>
+      <td style="padding:8px;color:#cdb7ad">${created}</td>
+      <td style="padding:8px;color:#cdb7ad">${updated}</td>
+    </tr>`;
+  }
+  html += '</tbody></table></div>';
+  return html;
+}
+
+function renderAdminGames() {
+  let html = '<div class="glass pad" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85rem"><thead><tr style="border-bottom:1px solid rgba(255,120,60,.3);text-align:left"><th style="padding:8px">White</th><th style="padding:8px">Black</th><th style="padding:8px">Mode</th><th style="padding:8px">Result</th><th style="padding:8px">Time Control</th><th style="padding:8px">Started</th><th style="padding:8px">Ended</th><th style="padding:8px">Moves</th></tr></thead><tbody>';
+  for (const g of adminData.games.slice(0, 100)) {
+    const started = new Date(g.started_at * 1000).toLocaleString();
+    const ended = g.ended_at ? new Date(g.ended_at * 1000).toLocaleString() : '—';
+    const resultColor = g.result === 'white' ? '#4ade80' : g.result === 'black' ? '#f87171' : g.result === 'draw' ? '#fbbf24' : '#cdb7ad';
+    const moves = g.moves ? (Array.isArray(g.moves) ? g.moves.length : (JSON.parse(g.moves || '[]').length)) : 0;
+    html += `<tr style="border-bottom:1px solid rgba(255,120,60,.1)">
+      <td style="padding:8px">${g.white_name || 'Unknown'}</td>
+      <td style="padding:8px">${g.black_name || 'Unknown'}</td>
+      <td style="padding:8px">${g.mode}</td>
+      <td style="padding:8px"><span style="color:${resultColor};font-weight:600;text-transform:capitalize">${g.result || 'ongoing'}</span></td>
+      <td style="padding:8px;font-family:monospace">${g.time_control || '—'}</td>
+      <td style="padding:8px;color:#cdb7ad">${started}</td>
+      <td style="padding:8px;color:#cdb7ad">${ended}</td>
+      <td style="padding:8px;font-family:monospace">${moves}</td>
+    </tr>`;
+  }
+  html += '</tbody></table></div>';
+  return html;
+}
+
+function renderAdminTournaments() {
+  let html = '<div class="glass pad"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="margin:0">Tournaments</h3><button class="cta" onclick="createTournament()">➕ Create Tournament</button></div>';
+  if (!adminData.tournaments.length) {
+    html += '<div style="text-align:center;color:#cdb7ad;padding:20px">No tournaments yet</div>';
+  } else {
+    html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85rem"><thead><tr style="border-bottom:1px solid rgba(255,120,60,.3);text-align:left"><th style="padding:8px">Name</th><th style="padding:8px">Status</th><th style="padding:8px">Start Time</th><th style="padding:8px">Time Control</th><th style="padding:8px">Max Players</th><th style="padding:8px">Creator</th><th style="padding:8px">Actions</th></tr></thead><tbody>';
+    for (const t of adminData.tournaments) {
+      const start = new Date(t.start_time * 1000).toLocaleString();
+      const statusColor = t.status === 'ongoing' ? '#4ade80' : t.status === 'registration' ? '#60a5fa' : t.status === 'completed' ? '#a78bfa' : t.status === 'cancelled' ? '#f87171' : '#fbbf24';
+      html += `<tr style="border-bottom:1px solid rgba(255,120,60,.1)">
+        <td style="padding:8px"><b>${t.name}</b><br><small style="color:#cdb7ad">${t.description || ''}</small></td>
+        <td style="padding:8px"><span style="color:${statusColor};font-weight:600;text-transform:capitalize">${t.status}</span></td>
+        <td style="padding:8px;color:#cdb7ad">${start}</td>
+        <td style="padding:8px;font-family:monospace">${t.time_control}</td>
+        <td style="padding:8px">${t.max_players}</td>
+        <td style="padding:8px">${t.creator_name || 'Unknown'}</td>
+        <td style="padding:8px"><div class="btns" style="gap:4px">
+          <button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="updateTournamentStatus('${t.id}', t.status === 'upcoming' ? 'registration' : t.status === 'registration' ? 'ongoing' : 'completed')">Next Status</button>
+          <button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="deleteTournament('${t.id}')">🗑️</button>
+        </div></td>
+      </tr>`;
+    }
+    html += '</tbody></table></div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderAdminAnnouncements() {
+  let html = '<div class="glass pad"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="margin:0">Announcements</h3><button class="cta" onclick="createAnnouncement()">📢 Create Announcement</button></div>';
+  if (!adminData.announcements.length) {
+    html += '<div style="text-align:center;color:#cdb7ad;padding:20px">No announcements yet</div>';
+  } else {
+    html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85rem"><thead><tr style="border-bottom:1px solid rgba(255,120,60,.3);text-align:left"><th style="padding:8px">Title</th><th style="padding:8px">Type</th><th style="padding:8px">Audience</th><th style="padding:8px">Active</th><th style="padding:8px">Created</th><th style="padding:8px">Expires</th><th style="padding:8px">Actions</th></tr></thead><tbody>';
+    for (const a of adminData.announcements) {
+      const created = new Date(a.created_at * 1000).toLocaleString();
+      const expires = a.expires_at ? new Date(a.expires_at * 1000).toLocaleString() : 'Never';
+      const typeColors = { info: '#60a5fa', warning: '#fbbf24', success: '#4ade80', tournament: '#a78bfa' };
+      html += `<tr style="border-bottom:1px solid rgba(255,120,60,.1)">
+        <td style="padding:8px"><b>${a.title}</b><br><small style="color:#cdb7ad">${a.content.substring(0, 80)}${a.content.length > 80 ? '...' : ''}</small></td>
+        <td style="padding:8px"><span style="color:${typeColors[a.type] || '#cdb7ad'};font-weight:600;text-transform:capitalize">${a.type}</span></td>
+        <td style="padding:8px;text-transform:capitalize">${a.target_audience}</td>
+        <td style="padding:8px"><span style="color:${a.is_active ? '#4ade80' : '#f87171'};font-weight:600">${a.is_active ? 'Yes' : 'No'}</span></td>
+        <td style="padding:8px;color:#cdb7ad">${created}</td>
+        <td style="padding:8px;color:#cdb7ad">${expires}</td>
+        <td style="padding:8px"><div class="btns" style="gap:4px">
+          <button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="updateAnnouncement('${a.id}')">✏️ Edit</button>
+          <button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="deleteAnnouncement('${a.id}')">🗑️</button>
+        </div></td>
+      </tr>`;
+    }
+    html += '</tbody></table></div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderAdminContent() {
+  const content = $('adminContent');
+  if (!content) return;
+  switch (adminTab) {
+    case 'dashboard': content.innerHTML = renderAdminDashboard(); loadAdminStats(); break;
+    case 'users': content.innerHTML = renderAdminUsers() + '<div style="margin-top:20px">' + renderAdminPendingUsers(adminData.users.filter(u => u.registration_status === 'pending')) + '</div>'; loadAdminUsers(); break;
+    case 'rooms': content.innerHTML = renderAdminRooms(); loadAdminRooms(); break;
+    case 'games': content.innerHTML = renderAdminGames(); loadAdminGames(); break;
+    case 'tournaments': content.innerHTML = renderAdminTournaments(); loadAdminTournaments(); break;
+    case 'announcements': content.innerHTML = renderAdminAnnouncements(); loadAdminAnnouncements(); break;
+  }
+}
+
+function switchAdminTab(tab) {
+  adminTab = tab;
+  document.querySelectorAll('#adminTabs button').forEach(b => {
+    b.classList.toggle('on', b.dataset.tab === tab);
+    b.setAttribute('aria-pressed', b.dataset.tab === tab);
+  });
+  renderAdminContent();
+}
+
+document.querySelectorAll('#adminTabs button').forEach(b => {
+  b.onclick = () => switchAdminTab(b.dataset.tab);
+});
+
+$('adminLo').onclick = () => nav('setup');
+
+function checkAdminAndNav() {
+  const user = cfg.user ? users()[cfg.user.toLowerCase()] : null;
+  const isAdminLocal = user && user.is_admin;
+  const isAdminBackend = LS.get('cs_admin') === true;
+  const isAdmin = isAdminLocal || isAdminBackend;
+  if (isAdmin && page !== 'admin') {
+    // Add admin tab to navigation
+    if (!document.getElementById('adminTabBtn')) {
+      const btn = document.createElement('button');
+      btn.id = 'adminTabBtn';
+      btn.className = 'opt';
+      btn.textContent = '⚙️ Admin Panel';
+      btn.onclick = () => nav('admin');
+      document.querySelector('#p-setup .btns')?.prepend(btn);
+    }
+  }
+  return isAdmin;
+}
+
+// Update nav function to handle admin page
+const originalNav = nav;
+nav = function(p) {
+  if (p === 'admin') {
+    const user = cfg.user ? users()[cfg.user.toLowerCase()] : null;
+    const isAdminLocal = user && user.is_admin;
+    const isAdminBackend = LS.get('cs_admin') === true;
+    if (!isAdminLocal && !isAdminBackend) { p = 'setup'; }
+  }
+  originalNav(p);
+  if (p === 'admin') {
+    $('adminUser').textContent = cfg.user || '';
+    const user = users()[cfg.user.toLowerCase()];
+    $('adminRec').textContent = (user && user.is_admin) || LS.get('cs_admin') ? 'Administrator access granted' : '';
+    switchAdminTab('dashboard');
+  }
+};
+
+// Update route to handle admin
+const originalRoute = route;
+route = function() {
+  let p = (location.hash || '').slice(2);
+  if (!['login','setup','play','admin'].includes(p)) p = 'login';
+  if (p === 'login' && cfg.user) p = 'setup';
+  if (p === 'admin') {
+    const user = cfg.user ? users()[cfg.user.toLowerCase()] : null;
+    const isAdminLocal = user && user.is_admin;
+    const isAdminBackend = LS.get('cs_admin') === true;
+    if (!isAdminLocal && !isAdminBackend) p = 'setup';
+  }
+  nav(p);
+};
+
+// Update paintSetup to check admin
+const originalPaintSetup = paintSetup;
+paintSetup = function() {
+  originalPaintSetup();
+  checkAdminAndNav();
+};
+
+// Initialize admin check on load
+setTimeout(checkAdminAndNav, 100);
+
+setInterval(()=>{const n=performance.now(),d=n-lastT;lastT=n;if(page==='play'&&tcb&&clockSide&&!over){clk[clockSide]-=d;if(clk[clockSide]<=0){clk[clockSide]=0;flag(clockSide);}}rclk();},100);
+mode=cfg.mode;level=cfg.level;help=cfg.help;init();route();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
