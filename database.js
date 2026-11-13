@@ -314,6 +314,41 @@ const announcementOps = {
   deactivateExpired: db.prepare(`UPDATE announcements SET is_active = 0 WHERE expires_at IS NOT NULL AND expires_at < ?`),
 };
 
+// Initialize additional tables before preparing statements
+db.exec(`
+  CREATE TABLE IF NOT EXISTS settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    registration_requires_approval INTEGER DEFAULT 1,
+    max_rooms_per_user INTEGER DEFAULT 5,
+    default_time_control TEXT DEFAULT '600+0',
+    maintenance_mode INTEGER DEFAULT 0,
+    allow_guest_play INTEGER DEFAULT 1,
+    max_tournament_players INTEGER DEFAULT 64
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS admin_logs (
+    id TEXT PRIMARY KEY,
+    level TEXT NOT NULL,
+    message TEXT NOT NULL,
+    user TEXT,
+    ip TEXT,
+    timestamp INTEGER DEFAULT (strftime('%s', 'now'))
+  )
+`);
+
+db.exec(`CREATE INDEX IF NOT EXISTS idx_admin_logs_timestamp ON admin_logs(timestamp DESC)`);
+
+// Insert default settings if not exists
+const existingSettings = db.prepare(`SELECT * FROM settings LIMIT 1`).get();
+if (!existingSettings) {
+  db.prepare(`
+    INSERT INTO settings (id, registration_requires_approval, max_rooms_per_user, default_time_control, maintenance_mode, allow_guest_play, max_tournament_players)
+    VALUES (1, 1, 5, '600+0', 0, 1, 64)
+  `).run();
+}
+
 // Admin stats
 const adminStatsOps = {
   getOverview: db.prepare(`
@@ -331,6 +366,102 @@ const adminStatsOps = {
   `),
 };
 
+// Analytics operations
+const analyticsOps = {
+  getGamesToday: db.prepare(`
+    SELECT COUNT(*) as count FROM games
+    WHERE started_at >= strftime('%s', date('now'))
+  `),
+  getActivePlayersToday: db.prepare(`
+    SELECT COUNT(DISTINCT u.id) as count FROM users u
+    JOIN games g ON u.id = g.white_id OR u.id = g.black_id
+    WHERE g.started_at >= strftime('%s', date('now'))
+  `),
+  getNewUsersToday: db.prepare(`
+    SELECT COUNT(*) as count FROM users
+    WHERE created_at >= strftime('%s', date('now'))
+  `),
+  getAvgGameDuration: db.prepare(`
+    SELECT AVG((ended_at - started_at) / 60.0) as avg_minutes FROM games
+    WHERE ended_at IS NOT NULL AND started_at >= strftime('%s', date('now', '-30 days'))
+  `),
+  getCpuVsMultiplayer: db.prepare(`
+    SELECT
+      SUM(CASE WHEN mode = 'cpu' THEN 1 ELSE 0 END) as cpu,
+      SUM(CASE WHEN mode = 'multiplayer' THEN 1 ELSE 0 END) as multiplayer
+    FROM games
+    WHERE started_at >= strftime('%s', date('now', '-30 days'))
+  `),
+  getResultsDistribution: db.prepare(`
+    SELECT result, COUNT(*) as count FROM games
+    WHERE result IS NOT NULL AND started_at >= strftime('%s', date('now', '-30 days'))
+    GROUP BY result
+  `),
+  getTimeControls: db.prepare(`
+    SELECT time_control, COUNT(*) as count FROM games
+    WHERE started_at >= strftime('%s', date('now', '-30 days'))
+    GROUP BY time_control
+    ORDER BY count DESC
+    LIMIT 10
+  `),
+  getUserGrowth: db.prepare(`
+    SELECT date(created_at, 'unixepoch') as date, COUNT(*) as count FROM users
+    WHERE created_at >= strftime('%s', date('now', '-30 days'))
+    GROUP BY date(created_at, 'unixepoch')
+    ORDER BY date
+  `),
+  getTopPlayers: db.prepare(`
+    SELECT u.username,
+      s.wins, s.draws, s.losses, s.games_played
+    FROM user_stats s
+    JOIN users u ON s.user_id = u.id
+    WHERE s.games_played >= 5
+    ORDER BY (s.wins * 1.0 / s.games_played) DESC, s.games_played DESC
+    LIMIT 20
+  `),
+  getAll: db.prepare(`
+    SELECT * FROM games ORDER BY started_at DESC LIMIT 1000
+  `),
+};
+
+// Logs operations (audit log)
+const logsOps = {
+  create: db.prepare(`
+    INSERT INTO admin_logs (id, level, message, user, ip, timestamp)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `),
+  getAll: db.prepare(`
+    SELECT * FROM admin_logs ORDER BY timestamp DESC LIMIT 500
+  `),
+  clear: db.prepare(`DELETE FROM admin_logs`),
+};
+
+// Settings operations
+const settingsOps = {
+  get: db.prepare(`SELECT * FROM settings LIMIT 1`),
+  upsert: db.prepare(`
+    INSERT INTO settings (id, registration_requires_approval, max_rooms_per_user, default_time_control, maintenance_mode, allow_guest_play, max_tournament_players)
+    VALUES (1, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      registration_requires_approval = excluded.registration_requires_approval,
+      max_rooms_per_user = excluded.max_rooms_per_user,
+      default_time_control = excluded.default_time_control,
+      maintenance_mode = excluded.maintenance_mode,
+      allow_guest_play = excluded.allow_guest_play,
+      max_tournament_players = excluded.max_tournament_players
+  `),
+};
+
+// User ban operation
+const userBanOps = {
+  ban: db.prepare(`UPDATE users SET registration_status = 'rejected' WHERE id = ?`),
+};
+
+// Room close operation
+const roomCloseOps = {
+  close: db.prepare(`UPDATE rooms SET status = 'finished', updated_at = ? WHERE id = ?`),
+};
+
 module.exports = {
   db,
   userOps,
@@ -340,6 +471,11 @@ module.exports = {
   tournamentOps,
   announcementOps,
   adminStatsOps,
+  analyticsOps,
+  logsOps,
+  settingsOps,
+  userBanOps,
+  roomCloseOps,
   generateRoomCode,
   hashPassword,
   verifyPassword,

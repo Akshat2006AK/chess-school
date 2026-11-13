@@ -11,7 +11,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 
-const { db, userOps, statsOps, gameOps, roomOps, tournamentOps, announcementOps, adminStatsOps, generateRoomCode, hashPassword, verifyPassword } = require('./database');
+const { db, userOps, statsOps, gameOps, roomOps, tournamentOps, announcementOps, adminStatsOps, analyticsOps, logsOps, settingsOps, userBanOps, roomCloseOps, generateRoomCode, hashPassword, verifyPassword } = require('./database');
 const { START, legalMoves, make, chk, capSq, enough, fmt, checkDraw, best } = require('./chess-engine');
 
 const app = express();
@@ -201,6 +201,7 @@ app.get('/api/admin/users/pending', requireAdmin, (req, res) => {
 app.put('/api/admin/users/:id/approve', requireAdmin, (req, res) => {
   try {
     userOps.updateStatus.run('approved', req.params.id);
+    logsOps.create.run(require('uuid').v4(), 'admin', `Approved user ${req.params.id}`, req.adminUser.username, req.ip, Math.floor(Date.now() / 1000));
     res.json({ success: true });
   } catch (e) {
     console.error('Approve user error:', e);
@@ -211,6 +212,7 @@ app.put('/api/admin/users/:id/approve', requireAdmin, (req, res) => {
 app.put('/api/admin/users/:id/reject', requireAdmin, (req, res) => {
   try {
     userOps.updateStatus.run('rejected', req.params.id);
+    logsOps.create.run(require('uuid').v4(), 'admin', `Rejected user ${req.params.id}`, req.adminUser.username, req.ip, Math.floor(Date.now() / 1000));
     res.json({ success: true });
   } catch (e) {
     console.error('Reject user error:', e);
@@ -222,6 +224,7 @@ app.put('/api/admin/users/:id/admin', requireAdmin, (req, res) => {
   try {
     const { isAdmin } = req.body;
     userOps.setAdmin.run(isAdmin ? 1 : 0, req.params.id);
+    logsOps.create.run(require('uuid').v4(), 'admin', `Updated admin status for user ${req.params.id}`, req.adminUser.username, req.ip, Math.floor(Date.now() / 1000));
     res.json({ success: true });
   } catch (e) {
     console.error('Set admin error:', e);
@@ -369,6 +372,205 @@ app.delete('/api/admin/announcements/:id', requireAdmin, (req, res) => {
   } catch (e) {
     console.error('Delete announcement error:', e);
     res.status(500).json({ error: 'Failed to delete announcement' });
+  }
+});
+
+// Analytics
+app.get('/api/admin/analytics', requireAdmin, (req, res) => {
+  try {
+    const [
+      gamesToday,
+      activePlayersToday,
+      newUsersToday,
+      avgGameDuration,
+      cpuVsMultiplayer,
+      resultsDistribution,
+      timeControls,
+      userGrowth,
+      topPlayers
+    ] = [
+      analyticsOps.getGamesToday.get(),
+      analyticsOps.getActivePlayersToday.get(),
+      analyticsOps.getNewUsersToday.get(),
+      analyticsOps.getAvgGameDuration.get(),
+      analyticsOps.getCpuVsMultiplayer.get(),
+      analyticsOps.getResultsDistribution.all(),
+      analyticsOps.getTimeControls.all(),
+      analyticsOps.getUserGrowth.all(),
+      analyticsOps.getTopPlayers.all()
+    ];
+
+    // Convert results distribution to object
+    const resultsDist = { white: 0, black: 0, draw: 0 };
+    resultsDistribution.forEach(r => { if (r.result) resultsDist[r.result] = r.count; });
+
+    // Convert time controls to object
+    const tcObj = {};
+    timeControls.forEach(t => { tcObj[t.time_control] = t.count; });
+
+    // Format user growth
+    const growthFormatted = userGrowth.map(g => ({ date: Math.floor(new Date(g.date).getTime() / 1000), count: g.count }));
+
+    res.json({
+      games_today: gamesToday?.count || 0,
+      active_players_today: activePlayersToday?.count || 0,
+      new_users_today: newUsersToday?.count || 0,
+      avg_game_duration: Math.round(avgGameDuration?.avg_minutes || 0),
+      cpu_vs_multiplayer: cpuVsMultiplayer || { cpu: 0, multiplayer: 0 },
+      results_distribution: resultsDist,
+      time_controls: tcObj,
+      user_growth: growthFormatted,
+      top_players: topPlayers
+    });
+  } catch (e) {
+    console.error('Analytics error:', e);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+});
+
+// Logs
+app.get('/api/admin/logs', requireAdmin, (req, res) => {
+  try {
+    const logs = logsOps.getAll.all();
+    res.json(logs);
+  } catch (e) {
+    console.error('Get logs error:', e);
+    res.status(500).json({ error: 'Failed to fetch logs' });
+  }
+});
+
+app.post('/api/admin/logs/clear', requireAdmin, (req, res) => {
+  try {
+    logsOps.clear.run();
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Clear logs error:', e);
+    res.status(500).json({ error: 'Failed to clear logs' });
+  }
+});
+
+// Settings
+app.get('/api/admin/settings', requireAdmin, (req, res) => {
+  try {
+    const settings = settingsOps.get.get();
+    res.json(settings || {});
+  } catch (e) {
+    console.error('Get settings error:', e);
+    res.status(500).json({ error: 'Failed to fetch settings' });
+  }
+});
+
+app.put('/api/admin/settings', requireAdmin, (req, res) => {
+  try {
+    const { registration_requires_approval, max_rooms_per_user, default_time_control, maintenance_mode, allow_guest_play, max_tournament_players } = req.body;
+    settingsOps.upsert.run(
+      registration_requires_approval ? 1 : 0,
+      max_rooms_per_user || 5,
+      default_time_control || '600+0',
+      maintenance_mode ? 1 : 0,
+      allow_guest_play !== false ? 1 : 0,
+      max_tournament_players || 64
+    );
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Update settings error:', e);
+    res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
+// User ban
+app.put('/api/admin/users/:id/ban', requireAdmin, (req, res) => {
+  try {
+    userBanOps.ban.run(req.params.id);
+    // Log the admin action
+    logsOps.create.run(require('uuid').v4(), 'admin', `Banned user ${req.params.id}`, req.adminUser.username, req.ip, Math.floor(Date.now() / 1000));
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Ban user error:', e);
+    res.status(500).json({ error: 'Failed to ban user' });
+  }
+});
+
+// Room close
+app.put('/api/admin/rooms/:id/close', requireAdmin, (req, res) => {
+  try {
+    roomCloseOps.close.run(Math.floor(Date.now() / 1000), req.params.id);
+    // Remove from memory if present
+    roomStates.delete(req.params.id);
+    // Log the admin action
+    logsOps.create.run(require('uuid').v4(), 'admin', `Closed room ${req.params.id}`, req.adminUser.username, req.ip, Math.floor(Date.now() / 1000));
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Close room error:', e);
+    res.status(500).json({ error: 'Failed to close room' });
+  }
+});
+
+// Database management
+app.post('/api/admin/cleanup/rooms', requireAdmin, (req, res) => {
+  try {
+    const oneDayAgo = Math.floor(Date.now() / 1000) - 86400;
+    roomOps.cleanupOld.run(oneDayAgo);
+    logsOps.create.run(require('uuid').v4(), 'admin', 'Cleaned up old rooms', req.adminUser.username, req.ip, Math.floor(Date.now() / 1000));
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Cleanup rooms error:', e);
+    res.status(500).json({ error: 'Failed to cleanup rooms' });
+  }
+});
+
+app.post('/api/admin/db/vacuum', requireAdmin, (req, res) => {
+  try {
+    db.exec('VACUUM');
+    logsOps.create.run(require('uuid').v4(), 'admin', 'Database vacuumed', req.adminUser.username, req.ip, Math.floor(Date.now() / 1000));
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Vacuum database error:', e);
+    res.status(500).json({ error: 'Failed to vacuum database' });
+  }
+});
+
+app.get('/api/admin/db/export', requireAdmin, (req, res) => {
+  try {
+    const exportData = {
+      users: userOps.getAll.all(),
+      user_stats: db.prepare('SELECT * FROM user_stats').all(),
+      games: gameOps.getAll.all(),
+      rooms: roomOps.getAll.all(),
+      tournaments: tournamentOps.getAll.all(),
+      tournament_registrations: db.prepare('SELECT * FROM tournament_registrations').all(),
+      announcements: announcementOps.getAll.all(),
+      settings: settingsOps.get.get(),
+      exported_at: new Date().toISOString()
+    };
+    logsOps.create.run(require('uuid').v4(), 'admin', 'Database exported', req.adminUser.username, req.ip, Math.floor(Date.now() / 1000));
+    res.json(exportData);
+  } catch (e) {
+    console.error('Export database error:', e);
+    res.status(500).json({ error: 'Failed to export database' });
+  }
+});
+
+app.post('/api/admin/db/reset', requireAdmin, (req, res) => {
+  try {
+    // Delete all data but keep schema
+    db.exec(`
+      DELETE FROM tournament_registrations;
+      DELETE FROM tournaments;
+      DELETE FROM announcements;
+      DELETE FROM games;
+      DELETE FROM rooms;
+      DELETE FROM user_stats;
+      DELETE FROM users;
+      DELETE FROM admin_logs;
+    `);
+    // Re-insert default settings
+    settingsOps.upsert.run(1, 5, '600+0', 0, 1, 64);
+    logsOps.create.run(require('uuid').v4(), 'admin', 'Database reset', req.adminUser.username, req.ip, Math.floor(Date.now() / 1000));
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Reset database error:', e);
+    res.status(500).json({ error: 'Failed to reset database' });
   }
 });
 

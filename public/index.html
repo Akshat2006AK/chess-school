@@ -121,15 +121,18 @@ label.f{display:block;margin:12px 0 4px;color:#d9c2b8;font-size:.9rem}
  </div>
 </section>
 <section class="pg" id="p-admin" hidden>
- <div class="panel glass" style="width:min(1200px,95vw);max-height:100%;overflow:auto">
-  <div class="phead"><div><h2 class="big">Admin Panel</h2><p class="sub">Welcome, <b id="adminUser"></b>. <span id="adminRec"></span></p></div><button id="adminLo">Back to Game</button></div>
+ <div class="panel glass" style="width:min(1400px,95vw);max-height:100%;overflow:auto">
+  <div class="phead"><div><h2 class="big">⚙️ Admin Panel</h2><p class="sub">Welcome, <b id="adminUser"></b>. <span id="adminRec"></span></p></div><button id="adminLo" class="ghost">Back to Game</button></div>
   <div class="tabs" id="adminTabs">
-   <button type="button" class="on" data-tab="dashboard">Dashboard</button>
-   <button type="button" data-tab="users">Users</button>
-   <button type="button" data-tab="rooms">Rooms</button>
-   <button type="button" data-tab="games">Games</button>
-   <button type="button" data-tab="tournaments">Tournaments</button>
-   <button type="button" data-tab="announcements">Announcements</button>
+   <button type="button" class="on" data-tab="dashboard">📊 Dashboard</button>
+   <button type="button" data-tab="users">👥 Users</button>
+   <button type="button" data-tab="rooms">🏠 Rooms</button>
+   <button type="button" data-tab="games">♟️ Games</button>
+   <button type="button" data-tab="tournaments">🏆 Tournaments</button>
+   <button type="button" data-tab="announcements">📢 Announcements</button>
+   <button type="button" data-tab="analytics">📈 Analytics</button>
+   <button type="button" data-tab="settings">⚙️ Settings</button>
+   <button type="button" data-tab="logs">📋 Logs</button>
   </div>
   <div id="adminContent"></div>
   <p style="margin-top:20px;text-align:center;color:#887; font-size:0.8rem;">Made by Avantika ❤️</p>
@@ -472,10 +475,15 @@ $('rsg').onclick=()=>{if(over||page!=='play')return;if(!rsT){$('rsg').textConten
  say(mode==='two'?`<b>${s==='w'?'White':'Black'} resigned.</b> ${o==='w'?'White':'Black'} wins.`:'<b>You resigned.</b> The computer wins.');finish(o);rclk();};
 $('rm').onclick=()=>apply();$('rsu').onclick=()=>{$('res').hidden=true;nav('setup');};$('rvw').onclick=()=>{$('res').hidden=true;};$('mn').onclick=()=>nav('setup');
 
-// ============ ADMIN PANEL LOGIC ============
-let adminSocket = null;
+// ============ ADMIN PANEL LOGIC (ADVANCED) ============
 let adminTabActive = 'dashboard';
-let adminData = { users: [], rooms: [], games: [], tournaments: [], announcements: [], stats: {} };
+let adminData = { users: [], rooms: [], games: [], tournaments: [], announcements: [], stats: {}, analytics: {}, logs: [], settings: {} };
+let adminFilters = { users: { search: '', status: '', role: '' }, rooms: { search: '', status: '' }, games: { search: '', mode: '', result: '' }, tournaments: { search: '', status: '' } };
+let adminPagination = { users: { page: 1, perPage: 25 }, games: { page: 1, perPage: 50 }, tournaments: { page: 1, perPage: 20 } };
+let adminSort = { users: { col: 'created_at', dir: 'desc' }, games: { col: 'started_at', dir: 'desc' } };
+let adminAutoRefresh = null;
+let adminSocket = null;
+let adminSelectedRows = new Set();
 
 const API_BASE = '';
 
@@ -494,145 +502,686 @@ async function adminFetch(path, options = {}) {
   return res.json();
 }
 
+// ============ CORE DATA LOADING ============
 async function loadAdminStats() {
   try {
     adminData.stats = await adminFetch('/api/admin/stats');
-    renderAdminDashboard();
+    if (adminTabActive === 'dashboard') renderAdminDashboard();
   } catch (e) { console.error(e); }
 }
 
 async function loadAdminUsers() {
   try {
     adminData.users = await adminFetch('/api/admin/users');
-    renderAdminUsers();
-  } catch (e) { console.error(e); }
-}
-
-async function loadAdminPendingUsers() {
-  try {
-    const pending = await adminFetch('/api/admin/users/pending');
-    renderAdminPendingUsers(pending);
+    if (adminTabActive === 'users') renderAdminUsers();
   } catch (e) { console.error(e); }
 }
 
 async function loadAdminRooms() {
   try {
     adminData.rooms = await adminFetch('/api/admin/rooms');
-    renderAdminRooms();
+    if (adminTabActive === 'rooms') renderAdminRooms();
   } catch (e) { console.error(e); }
 }
 
 async function loadAdminGames() {
   try {
     adminData.games = await adminFetch('/api/admin/games');
-    renderAdminGames();
+    if (adminTabActive === 'games') renderAdminGames();
   } catch (e) { console.error(e); }
 }
 
 async function loadAdminTournaments() {
   try {
     adminData.tournaments = await adminFetch('/api/admin/tournaments');
-    renderAdminTournaments();
+    if (adminTabActive === 'tournaments') renderAdminTournaments();
   } catch (e) { console.error(e); }
 }
 
 async function loadAdminAnnouncements() {
   try {
     adminData.announcements = await adminFetch('/api/admin/announcements');
-    renderAdminAnnouncements();
+    if (adminTabActive === 'announcements') renderAdminAnnouncements();
   } catch (e) { console.error(e); }
 }
 
+async function loadAdminAnalytics() {
+  try {
+    adminData.analytics = await adminFetch('/api/admin/analytics');
+    if (adminTabActive === 'analytics') renderAdminAnalytics();
+  } catch (e) { console.error(e); }
+}
+
+async function loadAdminLogs() {
+  try {
+    adminData.logs = await adminFetch('/api/admin/logs');
+    if (adminTabActive === 'logs') renderAdminLogs();
+  } catch (e) { console.error(e); }
+}
+
+async function loadAdminSettings() {
+  try {
+    adminData.settings = await adminFetch('/api/admin/settings');
+    if (adminTabActive === 'settings') renderAdminSettings();
+  } catch (e) { console.error(e); }
+}
+
+// ============ USER MANAGEMENT ============
 function approveUser(userId) {
   adminFetch('/api/admin/users/' + userId + '/approve', { method: 'PUT' })
-    .then(() => { loadAdminUsers(); loadAdminPendingUsers(); loadAdminStats(); })
-    .catch(e => alert('Failed: ' + e.message));
+    .then(() => { loadAdminUsers(); loadAdminStats(); showToast('User approved', 'success'); })
+    .catch(e => showToast('Failed: ' + e.message, 'error'));
 }
 
 function rejectUser(userId) {
   adminFetch('/api/admin/users/' + userId + '/reject', { method: 'PUT' })
-    .then(() => { loadAdminUsers(); loadAdminPendingUsers(); loadAdminStats(); })
-    .catch(e => alert('Failed: ' + e.message));
+    .then(() => { loadAdminUsers(); loadAdminStats(); showToast('User rejected', 'success'); })
+    .catch(e => showToast('Failed: ' + e.message, 'error'));
 }
 
 function toggleAdminStatus(userId, isAdmin) {
   adminFetch('/api/admin/users/' + userId + '/admin', { method: 'PUT', body: JSON.stringify({ isAdmin }) })
-    .then(() => loadAdminUsers())
-    .catch(e => alert('Failed: ' + e.message));
+    .then(() => { loadAdminUsers(); showToast('Admin status updated', 'success'); })
+    .catch(e => showToast('Failed: ' + e.message, 'error'));
 }
 
-function createTournament() {
-  const name = prompt('Tournament name:');
-  if (!name) return;
-  const startTime = prompt('Start time (ISO format, e.g., 2024-12-25T10:00:00Z):');
-  if (!startTime) return;
-  const timeControl = prompt('Time control (e.g., 600+0):', '600+0');
-  if (!timeControl) return;
-  const description = prompt('Description (optional):') || '';
-  const maxPlayers = parseInt(prompt('Max players:', '64')) || 64;
-  const endTime = prompt('End time (ISO format, optional):') || null;
+function banUser(userId) {
+  if (!confirm('Ban this user? This will prevent them from logging in.')) return;
+  adminFetch('/api/admin/users/' + userId + '/ban', { method: 'PUT' })
+    .then(() => { loadAdminUsers(); loadAdminStats(); showToast('User banned', 'success'); })
+    .catch(e => showToast('Failed: ' + e.message, 'error'));
+}
 
-  adminFetch('/api/admin/tournaments', {
-    method: 'POST',
-    body: JSON.stringify({ name, description, startTime, endTime, timeControl, maxPlayers })
-  }).then(() => loadAdminTournaments()).catch(e => alert('Failed: ' + e.message));
+function deleteUser(userId) {
+  if (!confirm('Permanently delete this user? This cannot be undone.')) return;
+  adminFetch('/api/admin/users/' + userId, { method: 'DELETE' })
+    .then(() => { loadAdminUsers(); loadAdminStats(); showToast('User deleted', 'success'); })
+    .catch(e => showToast('Failed: ' + e.message, 'error'));
+}
+
+function bulkUserAction(action) {
+  const selected = Array.from(adminSelectedRows);
+  if (!selected.length) return showToast('No users selected', 'warning');
+  if (!confirm(`Apply ${action} to ${selected.length} users?`)) return;
+
+  Promise.all(selected.map(id => adminFetch('/api/admin/users/' + id + '/' + action, { method: 'PUT' })))
+    .then(() => { adminSelectedRows.clear(); loadAdminUsers(); loadAdminStats(); showToast(`${action} applied to ${selected.length} users`, 'success'); })
+    .catch(e => showToast('Failed: ' + e.message, 'error'));
+}
+
+function exportUsers() {
+  const data = adminData.users.map(u => ({
+    username: u.username, status: u.registration_status, is_admin: u.is_admin,
+    created: new Date(u.created_at * 1000).toISOString(), last_login: u.last_login ? new Date(u.last_login * 1000).toISOString() : ''
+  }));
+  downloadCSV(data, 'users_export.csv');
+  showToast('Users exported', 'success');
+}
+
+// ============ ROOM MANAGEMENT ============
+function closeRoom(roomId) {
+  if (!confirm('Force close this room? Players will be disconnected.')) return;
+  adminFetch('/api/admin/rooms/' + roomId + '/close', { method: 'PUT' })
+    .then(() => { loadAdminRooms(); loadAdminStats(); showToast('Room closed', 'success'); })
+    .catch(e => showToast('Failed: ' + e.message, 'error'));
+}
+
+function viewRoomGame(roomId) {
+  const room = adminData.rooms.find(r => r.id === roomId);
+  if (!room || !room.game_state) return showToast('No game state available', 'warning');
+  openGameViewer(JSON.parse(room.game_state), room);
+}
+
+function openGameViewer(gameState, room) {
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:100;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML = `
+    <div class="glass" style="width:90%;max-width:800px;max-height:90%;overflow:auto;padding:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3>Room ${room.code} - ${room.host_name} vs ${room.guest_name || 'Waiting...'}</h3>
+        <button class="ghost" onclick="this.closest('div[style*=\"fixed\"]').remove()">Close</button>
+      </div>
+      <pre style="background:#0a0508;padding:16px;border-radius:8px;overflow:auto;color:#ffd700;font-size:.8rem">${JSON.stringify(gameState, null, 2)}</pre>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+// ============ GAME MANAGEMENT ============
+function viewGameReplay(gameId) {
+  const game = adminData.games.find(g => g.id === gameId);
+  if (!game) return showToast('Game not found', 'warning');
+
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:100;display:flex;align-items:center;justify-content:center';
+  const moves = game.moves ? (Array.isArray(game.moves) ? game.moves : JSON.parse(game.moves || '[]')) : [];
+  modal.innerHTML = `
+    <div class="glass" style="width:90%;max-width:900px;max-height:90%;overflow:auto;padding:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+        <h3>${game.white_name} vs ${game.black_name}</h3>
+        <div class="btns">
+          <button class="cta" onclick="startReplay('${gameId}')">▶️ Play Replay</button>
+          <button class="ghost" onclick="this.closest('div[style*=\"fixed\"]').remove()">Close</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">
+        <div class="glass pad"><b>Mode:</b> ${game.mode}</div>
+        <div class="glass pad"><b>Time Control:</b> ${game.time_control || '—'}</div>
+        <div class="glass pad"><b>Result:</b> <span style="color:${game.result==='white'?'#4ade80':game.result==='black'?'#f87171':game.result==='draw'?'#fbbf24':'#cdb7ad'}">${game.result || 'ongoing'}</span></div>
+        <div class="glass pad"><b>Moves:</b> ${moves.length}</div>
+        <div class="glass pad"><b>Started:</b> ${new Date(game.started_at * 1000).toLocaleString()}</div>
+        <div class="glass pad"><b>Ended:</b> ${game.ended_at ? new Date(game.ended_at * 1000).toLocaleString() : '—'}</div>
+      </div>
+      <div id="replayBoard"></div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  window.startReplay = (id) => {
+    const g = adminData.games.find(x => x.id === id);
+    if (!g) return;
+    const ms = g.moves ? (Array.isArray(g.moves) ? g.moves : JSON.parse(g.moves || '[]')) : [];
+    runReplay(ms, document.getElementById('replayBoard'));
+  };
+}
+
+function runReplay(moves, container) {
+  let html = '<div class="glass pad" style="font-family:monospace;font-size:.85rem"><b>Move History:</b><br>';
+  moves.forEach((m, i) => {
+    const moveNum = Math.floor(i / 2) + 1;
+    const prefix = i % 2 === 0 ? `${moveNum}. ` : '';
+    html += `${prefix}${JSON.stringify(m)} `;
+    if (i % 2 === 1) html += '<br>';
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function deleteGame(gameId) {
+  if (!confirm('Delete this game record?')) return;
+  adminFetch('/api/admin/games/' + gameId, { method: 'DELETE' })
+    .then(() => { loadAdminGames(); loadAdminStats(); showToast('Game deleted', 'success'); })
+    .catch(e => showToast('Failed: ' + e.message, 'error'));
+}
+
+function exportGames() {
+  const data = adminData.games.slice(0, 1000).map(g => ({
+    white: g.white_name, black: g.black_name, mode: g.mode, result: g.result,
+    time_control: g.time_control, moves: g.moves ? (Array.isArray(g.moves) ? g.moves.length : JSON.parse(g.moves || '[]').length) : 0,
+    started: new Date(g.started_at * 1000).toISOString(), ended: g.ended_at ? new Date(g.ended_at * 1000).toISOString() : ''
+  }));
+  downloadCSV(data, 'games_export.csv');
+  showToast('Games exported', 'success');
+}
+
+// ============ TOURNAMENT MANAGEMENT ============
+function createTournament() {
+  const modal = createModal('Create Tournament', `
+    <form id="tournamentForm" style="display:flex;flex-direction:column;gap:12px">
+      <input name="name" placeholder="Tournament Name*" required style="padding:10px">
+      <textarea name="description" placeholder="Description" style="padding:10px;min-height:80px"></textarea>
+      <div class="grid2">
+        <input name="startTime" type="datetime-local" required style="padding:10px">
+        <input name="endTime" type="datetime-local" style="padding:10px">
+      </div>
+      <div class="grid2">
+        <input name="timeControl" placeholder="Time Control (e.g., 600+0)*" value="600+0" required style="padding:10px">
+        <input name="maxPlayers" type="number" placeholder="Max Players" value="64" min="2" max="256" style="padding:10px">
+      </div>
+      <div class="btns">
+        <button type="submit" class="cta">Create Tournament</button>
+        <button type="button" class="ghost" onclick="this.closest('div[style*=\"fixed\"]').remove()">Cancel</button>
+      </div>
+    </form>
+  `);
+
+  modal.querySelector('#tournamentForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const data = Object.fromEntries(fd);
+    data.startTime = new Date(data.startTime).getTime() / 1000;
+    data.endTime = data.endTime ? new Date(data.endTime).getTime() / 1000 : null;
+    data.maxPlayers = parseInt(data.maxPlayers) || 64;
+
+    try {
+      await adminFetch('/api/admin/tournaments', { method: 'POST', body: JSON.stringify(data) });
+      modal.remove();
+      loadAdminTournaments();
+      loadAdminStats();
+      showToast('Tournament created', 'success');
+    } catch (err) {
+      showToast('Failed: ' + err.message, 'error');
+    }
+  };
+}
+
+function editTournament(id) {
+  const t = adminData.tournaments.find(x => x.id === id);
+  if (!t) return;
+
+  const modal = createModal('Edit Tournament', `
+    <form id="tournamentForm" style="display:flex;flex-direction:column;gap:12px">
+      <input name="name" value="${t.name}" required style="padding:10px">
+      <textarea name="description" style="padding:10px;min-height:80px">${t.description || ''}</textarea>
+      <div class="grid2">
+        <input name="startTime" type="datetime-local" value="${new Date(t.start_time * 1000).toISOString().slice(0,16)}" required style="padding:10px">
+        <input name="endTime" type="datetime-local" value="${t.end_time ? new Date(t.end_time * 1000).toISOString().slice(0,16) : ''}" style="padding:10px">
+      </div>
+      <div class="grid2">
+        <input name="timeControl" value="${t.time_control}" required style="padding:10px">
+        <input name="maxPlayers" type="number" value="${t.max_players}" min="2" max="256" style="padding:10px">
+      </div>
+      <select name="status" style="padding:10px">
+        <option value="upcoming" ${t.status==='upcoming'?'selected':''}>Upcoming</option>
+        <option value="registration" ${t.status==='registration'?'selected':''}>Registration Open</option>
+        <option value="ongoing" ${t.status==='ongoing'?'selected':''}>Ongoing</option>
+        <option value="completed" ${t.status==='completed'?'selected':''}>Completed</option>
+        <option value="cancelled" ${t.status==='cancelled'?'selected':''}>Cancelled</option>
+      </select>
+      <div class="btns">
+        <button type="submit" class="cta">Save Changes</button>
+        <button type="button" class="ghost" onclick="this.closest('div[style*=\"fixed\"]').remove()">Cancel</button>
+      </div>
+    </form>
+  `);
+
+  modal.querySelector('#tournamentForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const data = Object.fromEntries(fd);
+    data.startTime = new Date(data.startTime).getTime() / 1000;
+    data.endTime = data.endTime ? new Date(data.endTime).getTime() / 1000 : null;
+    data.maxPlayers = parseInt(data.maxPlayers) || 64;
+
+    try {
+      await adminFetch('/api/admin/tournaments/' + id, { method: 'PUT', body: JSON.stringify(data) });
+      modal.remove();
+      loadAdminTournaments();
+      showToast('Tournament updated', 'success');
+    } catch (err) {
+      showToast('Failed: ' + err.message, 'error');
+    }
+  };
 }
 
 function updateTournamentStatus(id, status) {
   adminFetch('/api/admin/tournaments/' + id + '/status', { method: 'PUT', body: JSON.stringify({ status }) })
-    .then(() => loadAdminTournaments())
-    .catch(e => alert('Failed: ' + e.message));
+    .then(() => { loadAdminTournaments(); loadAdminStats(); showToast('Status updated', 'success'); })
+    .catch(e => showToast('Failed: ' + e.message, 'error'));
 }
 
 function deleteTournament(id) {
-  if (!confirm('Delete this tournament?')) return;
+  if (!confirm('Delete this tournament? All registrations will be removed.')) return;
   adminFetch('/api/admin/tournaments/' + id, { method: 'DELETE' })
-    .then(() => loadAdminTournaments())
-    .catch(e => alert('Failed: ' + e.message));
+    .then(() => { loadAdminTournaments(); loadAdminStats(); showToast('Tournament deleted', 'success'); })
+    .catch(e => showToast('Failed: ' + e.message, 'error'));
 }
 
-function createAnnouncement() {
-  const title = prompt('Announcement title:');
-  if (!title) return;
-  const content = prompt('Content:');
-  if (!content) return;
-  const type = prompt('Type (info/warning/success/tournament):', 'info') || 'info';
-  const targetAudience = prompt('Target audience (all/registered/admins):', 'all') || 'all';
-  const expiresAt = prompt('Expires at (ISO format, optional):') || null;
+function viewTournamentRegistrations(id) {
+  adminFetch('/api/admin/tournaments/' + id + '/registrations')
+    .then(regs => {
+      const t = adminData.tournaments.find(x => x.id === id);
+      const modal = createModal(`Registrations: ${t?.name}`, `
+        <div style="max-height:400px;overflow:auto">
+          ${regs.length ? regs.map(r => `<div class="glass" style="margin:8px 0;padding:12px;display:flex;justify-content:space-between">
+            <span>${r.username}</span><span style="color:#cdb7ad">${new Date(r.registered_at * 1000).toLocaleString()}</span>
+          </div>`).join('') : '<div class="glass pad" style="text-align:center;color:#cdb7ad">No registrations yet</div>'}
+        </div>
+        <div class="btns" style="margin-top:16px;justify-content:flex-end">
+          <button class="ghost" onclick="this.closest('div[style*=\"fixed\"]').remove()">Close</button>
+        </div>
+      `);
+    })
+    .catch(e => showToast('Failed: ' + e.message, 'error'));
+}
 
-  adminFetch('/api/admin/announcements', {
-    method: 'POST',
-    body: JSON.stringify({ title, content, type, targetAudience, expiresAt })
-  }).then(() => loadAdminAnnouncements()).catch(e => alert('Failed: ' + e.message));
+// ============ ANNOUNCEMENT MANAGEMENT ============
+function createAnnouncement() {
+  const modal = createModal('Create Announcement', `
+    <form id="announcementForm" style="display:flex;flex-direction:column;gap:12px">
+      <input name="title" placeholder="Title*" required style="padding:10px">
+      <textarea name="content" placeholder="Content*" required style="padding:10px;min-height:100px"></textarea>
+      <div class="grid3">
+        <select name="type" style="padding:10px"><option value="info">Info</option><option value="warning">Warning</option><option value="success">Success</option><option value="tournament">Tournament</option></select>
+        <select name="targetAudience" style="padding:10px"><option value="all">All Users</option><option value="registered">Registered Only</option><option value="admins">Admins Only</option></select>
+        <input name="expiresAt" type="datetime-local" placeholder="Expires (optional)" style="padding:10px">
+      </div>
+      <label style="display:flex;align-items:center;gap:8px"><input name="isActive" type="checkbox" checked> Active</label>
+      <div class="btns">
+        <button type="submit" class="cta">Create Announcement</button>
+        <button type="button" class="ghost" onclick="this.closest('div[style*=\"fixed\"]').remove()">Cancel</button>
+      </div>
+    </form>
+  `);
+
+  modal.querySelector('#announcementForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const data = Object.fromEntries(fd);
+    data.isActive = data.isActive ? 1 : 0;
+    data.expiresAt = data.expiresAt ? new Date(data.expiresAt).getTime() / 1000 : null;
+
+    try {
+      await adminFetch('/api/admin/announcements', { method: 'POST', body: JSON.stringify(data) });
+      modal.remove();
+      loadAdminAnnouncements();
+      loadAdminStats();
+      showToast('Announcement created', 'success');
+    } catch (err) {
+      showToast('Failed: ' + err.message, 'error');
+    }
+  };
 }
 
 function updateAnnouncement(id) {
   const a = adminData.announcements.find(x => x.id === id);
   if (!a) return;
-  const title = prompt('Title:', a.title);
-  if (title === null) return;
-  const content = prompt('Content:', a.content);
-  if (content === null) return;
-  const type = prompt('Type:', a.type) || a.type;
-  const targetAudience = prompt('Target audience:', a.target_audience) || a.target_audience;
-  const expiresAt = prompt('Expires at (ISO, empty to clear):', a.expires_at || '') || null;
-  const isActive = confirm('Active?');
 
-  adminFetch('/api/admin/announcements/' + id, {
-    method: 'PUT',
-    body: JSON.stringify({ title, content, type, targetAudience, expiresAt, isActive })
-  }).then(() => loadAdminAnnouncements()).catch(e => alert('Failed: ' + e.message));
+  const modal = createModal('Edit Announcement', `
+    <form id="announcementForm" style="display:flex;flex-direction:column;gap:12px">
+      <input name="title" value="${a.title}" required style="padding:10px">
+      <textarea name="content" required style="padding:10px;min-height:100px">${a.content}</textarea>
+      <div class="grid3">
+        <select name="type" style="padding:10px"><option value="info" ${a.type==='info'?'selected':''}>Info</option><option value="warning" ${a.type==='warning'?'selected':''}>Warning</option><option value="success" ${a.type==='success'?'selected':''}>Success</option><option value="tournament" ${a.type==='tournament'?'selected':''}>Tournament</option></select>
+        <select name="targetAudience" style="padding:10px"><option value="all" ${a.target_audience==='all'?'selected':''}>All Users</option><option value="registered" ${a.target_audience==='registered'?'selected':''}>Registered Only</option><option value="admins" ${a.target_audience==='admins'?'selected':''}>Admins Only</option></select>
+        <input name="expiresAt" type="datetime-local" value="${a.expires_at ? new Date(a.expires_at * 1000).toISOString().slice(0,16) : ''}" style="padding:10px">
+      </div>
+      <label style="display:flex;align-items:center;gap:8px"><input name="isActive" type="checkbox" ${a.is_active?'checked':''}> Active</label>
+      <div class="btns">
+        <button type="submit" class="cta">Save Changes</button>
+        <button type="button" class="ghost" onclick="this.closest('div[style*=\"fixed\"]').remove()">Cancel</button>
+      </div>
+    </form>
+  `);
+
+  modal.querySelector('#announcementForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const data = Object.fromEntries(fd);
+    data.isActive = data.isActive ? 1 : 0;
+    data.expiresAt = data.expiresAt ? new Date(data.expiresAt).getTime() / 1000 : null;
+
+    try {
+      await adminFetch('/api/admin/announcements/' + id, { method: 'PUT', body: JSON.stringify(data) });
+      modal.remove();
+      loadAdminAnnouncements();
+      showToast('Announcement updated', 'success');
+    } catch (err) {
+      showToast('Failed: ' + err.message, 'error');
+    }
+  };
 }
 
 function deleteAnnouncement(id) {
   if (!confirm('Delete this announcement?')) return;
   adminFetch('/api/admin/announcements/' + id, { method: 'DELETE' })
-    .then(() => loadAdminAnnouncements())
-    .catch(e => alert('Failed: ' + e.message));
+    .then(() => { loadAdminAnnouncements(); loadAdminStats(); showToast('Announcement deleted', 'success'); })
+    .catch(e => showToast('Failed: ' + e.message, 'error'));
 }
 
+function toggleAnnouncementActive(id, isActive) {
+  const a = adminData.announcements.find(x => x.id === id);
+  if (!a) return;
+  adminFetch('/api/admin/announcements/' + id, {
+    method: 'PUT',
+    body: JSON.stringify({ ...a, isActive: isActive ? 1 : 0 })
+  }).then(() => { loadAdminAnnouncements(); loadAdminStats(); })
+    .catch(e => showToast('Failed: ' + e.message, 'error'));
+}
+
+// ============ ANALYTICS ============
+function renderAdminAnalytics() {
+  const a = adminData.analytics || {};
+  return `
+    <div class="grid3" style="margin-bottom:20px">
+      <div class="glass pad" style="text-align:center"><div style="font-size:2.5rem;font-weight:700;color:#ff8a2a">${a.games_today || 0}</div><div style="color:#cdb7ad;font-size:.9rem">Games Today</div></div>
+      <div class="glass pad" style="text-align:center"><div style="font-size:2.5rem;font-weight:700;color:#4ade80">${a.active_players_today || 0}</div><div style="color:#cdb7ad;font-size:.9rem">Active Players</div></div>
+      <div class="glass pad" style="text-align:center"><div style="font-size:2.5rem;font-weight:700;color:#60a5fa">${a.new_users_today || 0}</div><div style="color:#cdb7ad;font-size:.9rem">New Registrations</div></div>
+      <div class="glass pad" style="text-align:center"><div style="font-size:2.5rem;font-weight:700;color:#fbbf24">${a.avg_game_duration || 0}</div><div style="color:#cdb7ad;font-size:.9rem">Avg Game Duration (min)</div></div>
+      <div class="glass pad" style="text-align:center"><div style="font-size:2.5rem;font-weight:700;color:#a78bfa">${a.cpu_vs_multiplayer?.cpu || 0}</div><div style="color:#cdb7ad;font-size:.9rem">vs Computer</div></div>
+      <div class="glass pad" style="text-align:center"><div style="font-size:2.5rem;font-weight:700;color:#f472b6">${a.cpu_vs_multiplayer?.multiplayer || 0}</div><div style="color:#cdb7ad;font-size:.9rem">Multiplayer</div></div>
+    </div>
+
+    <div class="glass pad" style="margin-bottom:20px">
+      <h3 style="margin-top:0">📊 Game Results Distribution</h3>
+      <div id="resultsChart" style="height:200px;display:flex;align-items:end;gap:8px;justify-content:center;padding:20px">
+        ${renderChart(a.results_distribution || { white: 0, black: 0, draw: 0 })}
+      </div>
+    </div>
+
+    <div class="glass pad" style="margin-bottom:20px">
+      <h3 style="margin-top:0">📈 Time Control Popularity</h3>
+      <div id="tcChart" style="height:200px;display:flex;align-items:end;gap:8px;justify-content:center;padding:20px">
+        ${renderChart(a.time_controls || {})}
+      </div>
+    </div>
+
+    <div class="glass pad" style="margin-bottom:20px">
+      <h3 style="margin-top:0">👥 User Growth (Last 30 Days)</h3>
+      <div id="growthChart" style="height:200px;display:flex;align-items:end;gap:4px;justify-content:center;padding:20px">
+        ${renderLineChart(a.user_growth || [])}
+      </div>
+    </div>
+
+    <div class="glass pad">
+      <h3 style="margin-top:0">🏆 Top Players</h3>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+          <thead><tr style="border-bottom:1px solid rgba(255,120,60,.3);text-align:left">
+            <th style="padding:8px">Rank</th><th style="padding:8px">Username</th><th style="padding:8px">Wins</th><th style="padding:8px">Draws</th><th style="padding:8px">Losses</th><th style="padding:8px">Win Rate</th><th style="padding:8px">Games</th>
+          </tr></thead>
+          <tbody>
+            ${(a.top_players || []).slice(0, 20).map((p, i) => `
+              <tr style="border-bottom:1px solid rgba(255,120,60,.1)">
+                <td style="padding:8px;font-weight:700;color:#ffd700">${i + 1}</td>
+                <td style="padding:8px"><b>${p.username}</b></td>
+                <td style="padding:8px;color:#4ade80">${p.wins}</td>
+                <td style="padding:8px;color:#fbbf24">${p.draws}</td>
+                <td style="padding:8px;color:#f87171">${p.losses}</td>
+                <td style="padding:8px">${p.games_played ? ((p.wins / p.games_played) * 100).toFixed(1) + '%' : '0%'}</td>
+                <td style="padding:8px">${p.games_played}</td>
+              </tr>
+            `).join('') || '<tr><td colspan="7" style="padding:20px;text-align:center;color:#cdb7ad">No data</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function renderChart(data) {
+  const entries = Object.entries(data);
+  if (!entries.length) return '<div style="color:#cdb7ad;text-align:center;padding:40px">No data</div>';
+  const max = Math.max(...entries.map(e => e[1]));
+  return entries.map(([label, value]) => `
+    <div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:60px">
+      <div style="width:40px;height:${max ? (value / max * 150) : 0}px;background:linear-gradient(#ff8a2a,#b3150f);border-radius:4px 4px 0 0;transition:height .3s"></div>
+      <div style="margin-top:8px;font-size:.7rem;color:#cdb7ad;text-align:center;white-space:nowrap">${label}</div>
+      <div style="font-weight:700;color:#ffe6b0;font-size:.85rem">${value}</div>
+    </div>
+  `).join('');
+}
+
+function renderLineChart(data) {
+  if (!data.length) return '<div style="color:#cdb7ad;text-align:center;padding:40px">No data</div>';
+  const max = Math.max(...data.map(d => d.count));
+  return data.map((d, i) => `
+    <div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:30px" title="${new Date(d.date * 1000).toLocaleDateString()}: ${d.count}">
+      <div style="width:16px;height:${max ? (d.count / max * 150) : 0}px;background:linear-gradient(#ff8a2a,#b3150f);border-radius:4px 4px 0 0"></div>
+      <div style="margin-top:4px;font-size:.6rem;color:#cdb7ad;transform:rotate(-45deg);transform-origin:top">${new Date(d.date * 1000).toLocaleDateString(undefined, {month:'short',day:'numeric'})}</div>
+    </div>
+  `).join('');
+}
+
+// ============ SETTINGS ============
+function renderAdminSettings() {
+  const s = adminData.settings || {
+    registration_requires_approval: true,
+    max_rooms_per_user: 5,
+    default_time_control: '600+0',
+    maintenance_mode: false,
+    allow_guest_play: true,
+    max_tournament_players: 64
+  };
+
+  return `
+    <div class="glass pad" style="max-width:600px">
+      <h3 style="margin-top:0">⚙️ Server Settings</h3>
+      <form id="settingsForm" style="display:flex;flex-direction:column;gap:16px">
+        <label style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <input type="checkbox" name="registration_requires_approval" ${s.registration_requires_approval ? 'checked' : ''}>
+          <span>Require admin approval for new registrations</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <input type="checkbox" name="allow_guest_play" ${s.allow_guest_play !== false ? 'checked' : ''}>
+          <span>Allow guest play (without account)</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <input type="checkbox" name="maintenance_mode" ${s.maintenance_mode ? 'checked' : ''}>
+          <span>🔧 Maintenance mode (blocks new games)</span>
+        </label>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label>Max rooms per user: <input name="max_rooms_per_user" type="number" value="${s.max_rooms_per_user || 5}" min="1" max="50" style="padding:8px;width:80px"></label>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label>Default time control: <input name="default_time_control" value="${s.default_time_control || '600+0'}" style="padding:8px;width:150px"></label>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label>Max tournament players: <input name="max_tournament_players" type="number" value="${s.max_tournament_players || 64}" min="2" max="256" style="padding:8px;width:80px"></label>
+        </div>
+        <div class="btns">
+          <button type="submit" class="cta">Save Settings</button>
+          <button type="button" class="ghost" onclick="loadAdminSettings()">Reset</button>
+        </div>
+      </form>
+
+      <hr style="border-color:rgba(255,120,60,.3);margin:24px 0">
+
+      <h3>🗄️ Database Management</h3>
+      <div class="btns" style="flex-wrap:wrap">
+        <button class="ghost" onclick="cleanupOldRooms()">🧹 Cleanup Old Rooms</button>
+        <button class="ghost" onclick="vacuumDatabase()">💾 Vacuum Database</button>
+        <button class="ghost" onclick="exportDatabase()">📥 Export Database</button>
+        <button class="cta" style="background:linear-gradient(#b3150f,#ff8a2a)" onclick="resetDatabase()">⚠️ Reset Database</button>
+      </div>
+    </div>
+  `;
+}
+
+function saveSettings() {
+  const form = document.getElementById('settingsForm');
+  if (!form) return;
+  const fd = new FormData(form);
+  const data = Object.fromEntries(fd);
+  ['registration_requires_approval', 'allow_guest_play', 'maintenance_mode'].forEach(k => {
+    data[k] = data[k] ? 1 : 0;
+  });
+  data.max_rooms_per_user = parseInt(data.max_rooms_per_user) || 5;
+  data.max_tournament_players = parseInt(data.max_tournament_players) || 64;
+
+  adminFetch('/api/admin/settings', { method: 'PUT', body: JSON.stringify(data) })
+    .then(() => { loadAdminSettings(); showToast('Settings saved', 'success'); })
+    .catch(e => showToast('Failed: ' + e.message, 'error'));
+}
+
+function cleanupOldRooms() {
+  if (!confirm('Remove all finished/waiting rooms older than 24 hours?')) return;
+  adminFetch('/api/admin/cleanup/rooms', { method: 'POST' })
+    .then(() => { loadAdminRooms(); loadAdminStats(); showToast('Cleanup complete', 'success'); })
+    .catch(e => showToast('Failed: ' + e.message, 'error'));
+}
+
+function vacuumDatabase() {
+  adminFetch('/api/admin/db/vacuum', { method: 'POST' })
+    .then(() => showToast('Database vacuumed', 'success'))
+    .catch(e => showToast('Failed: ' + e.message, 'error'));
+}
+
+function exportDatabase() {
+  adminFetch('/api/admin/db/export')
+    .then(res => {
+      const blob = new Blob([JSON.stringify(res, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `chess_school_backup_${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Database exported', 'success');
+    })
+    .catch(e => showToast('Failed: ' + e.message, 'error'));
+}
+
+function resetDatabase() {
+  if (!confirm('⚠️ DANGER: This will DELETE ALL DATA (users, games, rooms, tournaments, announcements). Type "RESET" to confirm.')) return;
+  const input = prompt('Type "RESET" to confirm complete database wipe:');
+  if (input !== 'RESET') return showToast('Cancelled', 'warning');
+
+  adminFetch('/api/admin/db/reset', { method: 'POST' })
+    .then(() => { location.reload(); showToast('Database reset', 'success'); })
+    .catch(e => showToast('Failed: ' + e.message, 'error'));
+}
+
+// ============ LOGS ============
+function renderAdminLogs() {
+  const logs = adminData.logs || [];
+  const filter = document.getElementById('logFilter')?.value || 'all';
+  const filtered = filter === 'all' ? logs : logs.filter(l => l.level === filter);
+
+  return `
+    <div class="glass pad" style="margin-bottom:16px">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <select id="logFilter" onchange="renderAdminLogs()" style="padding:8px">
+          <option value="all" ${filter==='all'?'selected':''}>All Logs</option>
+          <option value="info" ${filter==='info'?'selected':''}>Info</option>
+          <option value="warning" ${filter==='warning'?'selected':''}>Warning</option>
+          <option value="error" ${filter==='error'?'selected':''}>Error</option>
+          <option value="admin" ${filter==='admin'?'selected':''}>Admin Actions</option>
+        </select>
+        <button class="ghost" onclick="loadAdminLogs()">🔄 Refresh</button>
+        <button class="ghost" onclick="clearLogs()">🗑️ Clear Logs</button>
+        <button class="ghost" onclick="exportLogs()">📥 Export</button>
+      </div>
+    </div>
+    <div class="glass" style="max-height:500px;overflow:auto">
+      ${filtered.length ? filtered.slice(0, 200).map(l => `
+        <div style="padding:10px 16px;border-bottom:1px solid rgba(255,120,60,.1);font-family:monospace;font-size:.8rem;display:flex;gap:12px;flex-wrap:wrap">
+          <span style="color:#888;white-space:nowrap">${new Date(l.timestamp * 1000).toLocaleString()}</span>
+          <span style="color:${l.level==='error'?'#f87171':l.level==='warning'?'#fbbf24':l.level==='admin'?'#a78bfa':'#60a5fa'};font-weight:600;text-transform:uppercase;font-size:.7rem">${l.level}</span>
+          <span style="color:#cdb7ad;flex:1;min-width:200px">${l.message}</span>
+          ${l.user ? `<span style="color:#ff8a2a">User: ${l.user}</span>` : ''}
+          ${l.ip ? `<span style="color:#666">${l.ip}</span>` : ''}
+        </div>
+      `).join('') : '<div class="glass pad" style="text-align:center;color:#cdb7ad">No logs</div>'}
+    </div>
+  `;
+}
+
+function clearLogs() {
+  if (!confirm('Clear all logs?')) return;
+  adminFetch('/api/admin/logs/clear', { method: 'POST' })
+    .then(() => { loadAdminLogs(); showToast('Logs cleared', 'success'); })
+    .catch(e => showToast('Failed: ' + e.message, 'error'));
+}
+
+function exportLogs() {
+  const data = (adminData.logs || []).map(l => ({
+    time: new Date(l.timestamp * 1000).toISOString(),
+    level: l.level,
+    message: l.message,
+    user: l.user || '',
+    ip: l.ip || ''
+  }));
+  downloadCSV(data, 'logs_export.csv');
+  showToast('Logs exported', 'success');
+}
+
+// ============ RENDER FUNCTIONS ============
 function renderAdminDashboard() {
   const s = adminData.stats;
+  const recentGames = (adminData.games || []).slice(0, 5);
+  const recentRooms = (adminData.rooms || []).filter(r => r.status === 'playing').slice(0, 5);
+
   return `
     <div class="grid3" style="margin-bottom:20px">
       <div class="glass pad" style="text-align:center"><div style="font-size:2.5rem;font-weight:700;color:#ff8a2a">${s.total_users || 0}</div><div style="color:#cdb7ad;font-size:.9rem">Total Users</div></div>
@@ -646,186 +1195,536 @@ function renderAdminDashboard() {
       <div class="glass pad" style="text-align:center"><div style="font-size:2.5rem;font-weight:700;color:#f87171">${s.active_tournaments || 0}</div><div style="color:#cdb7ad;font-size:.9rem">Active Tournaments</div></div>
       <div class="glass pad" style="text-align:center"><div style="font-size:2.5rem;font-weight:700;color:#4ade80">${s.active_announcements || 0}</div><div style="color:#cdb7ad;font-size:.9rem">Active Announcements</div></div>
     </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+      <div class="glass pad">
+        <h3 style="margin-top:0">🏠 Active Games</h3>
+        ${recentRooms.length ? recentRooms.map(r => `
+          <div class="glass" style="margin:8px 0;padding:12px;display:flex;justify-content:space-between;align-items:center">
+            <div><b>${r.code}</b> - ${r.host_name} vs ${r.guest_name || 'Waiting...'}</div>
+            <div class="btns">
+              <button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="viewRoomGame('${r.id}')">View</button>
+              <button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="closeRoom('${r.id}')">Close</button>
+            </div>
+          </div>
+        `).join('') : '<div style="color:#cdb7ad;text-align:center;padding:20px">No active games</div>'}
+      </div>
+      <div class="glass pad">
+        <h3 style="margin-top:0">♟️ Recent Games</h3>
+        ${recentGames.length ? recentGames.map(g => `
+          <div class="glass" style="margin:8px 0;padding:12px">
+            <div style="display:flex;justify-content:space-between"><b>${g.white_name} vs ${g.black_name}</b><span style="color:${g.result==='white'?'#4ade80':g.result==='black'?'#f87171':g.result==='draw'?'#fbbf24':'#cdb7ad'}">${g.result || 'ongoing'}</span></div>
+            <div style="color:#cdb7ad;font-size:.8rem">${new Date(g.started_at * 1000).toLocaleString()} · ${g.time_control || '—'} · ${g.mode}</div>
+          </div>
+        `).join('') : '<div style="color:#cdb7ad;text-align:center;padding:20px">No recent games</div>'}
+      </div>
+    </div>
+
     <div class="glass pad">
       <h3 style="margin-top:0">Quick Actions</h3>
-      <div class="btns">
-        <button class="cta" onclick="createTournament()">➕ Create Tournament</button>
-        <button class="cta" onclick="createAnnouncement()">📢 Create Announcement</button>
-        <button class="ghost" onclick="loadAdminPendingUsers()">👥 Review Pending Users</button>
+      <div class="btns" style="flex-wrap:wrap">
+        <button class="cta" onclick="switchAdminTab('tournaments');setTimeout(()=>createTournament(),100)">➕ Create Tournament</button>
+        <button class="cta" onclick="switchAdminTab('announcements');setTimeout(()=>createAnnouncement(),100)">📢 Create Announcement</button>
+        <button class="ghost" onclick="switchAdminTab('users')">👥 Review Pending Users (${s.pending_users || 0})</button>
+        <button class="ghost" onclick="switchAdminTab('rooms')">🏠 Manage Rooms</button>
+        <button class="ghost" onclick="switchAdminTab('analytics')">📈 View Analytics</button>
+        <button class="ghost" onclick="switchAdminTab('settings')">⚙️ Settings</button>
       </div>
     </div>
   `;
 }
 
-function renderAdminUsers() {
-  let html = '<div class="glass pad" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.9rem"><thead><tr style="border-bottom:1px solid rgba(255,120,60,.3);text-align:left"><th style="padding:10px">Username</th><th style="padding:10px">Status</th><th style="padding:10px">Admin</th><th style="padding:10px">Created</th><th style="padding:10px">Last Login</th><th style="padding:10px">Actions</th></tr></thead><tbody>';
-  for (const u of adminData.users) {
-    const created = new Date(u.created_at * 1000).toLocaleDateString();
-    const lastLogin = u.last_login ? new Date(u.last_login * 1000).toLocaleDateString() : 'Never';
-    const statusColor = u.registration_status === 'approved' ? '#4ade80' : u.registration_status === 'pending' ? '#fbbf24' : '#f87171';
-    html += `<tr style="border-bottom:1px solid rgba(255,120,60,.1)">
-      <td style="padding:10px"><b>${u.username}</b></td>
-      <td style="padding:10px"><span style="color:${statusColor};font-weight:600;text-transform:capitalize">${u.registration_status}</span></td>
-      <td style="padding:10px"><label style="display:flex;align-items:center;gap:6px"><input type="checkbox" ${u.is_admin ? 'checked' : ''} onchange="toggleAdminStatus('${u.id}', this.checked)"><span>Admin</span></label></td>
-      <td style="padding:10px;color:#cdb7ad">${created}</td>
-      <td style="padding:10px;color:#cdb7ad">${lastLogin}</td>
-      <td style="padding:10px">
-        <div class="btns" style="gap:4px">
-          ${u.registration_status === 'pending' ? `<button class="cta" style="padding:4px 10px;font-size:.8rem" onclick="approveUser('${u.id}')">✅ Approve</button><button class="ghost" style="padding:4px 10px;font-size:.8rem" onclick="rejectUser('${u.id}')">❌ Reject</button>` : ''}
-        </div>
-      </td>
-    </tr>`;
-  }
-  html += '</tbody></table></div>';
-  return html;
+function getFilteredUsers() {
+  let users = [...adminData.users];
+  const f = adminFilters.users;
+  if (f.search) users = users.filter(u => u.username.toLowerCase().includes(f.search.toLowerCase()));
+  if (f.status) users = users.filter(u => u.registration_status === f.status);
+  if (f.role) users = users.filter(u => f.role === 'admin' ? u.is_admin : !u.is_admin);
+  users.sort((a, b) => {
+    const dir = adminSort.users.dir === 'asc' ? 1 : -1;
+    return dir * (a[adminSort.users.col] > b[adminSort.users.col] ? 1 : -1);
+  });
+  return users;
 }
 
-function renderAdminPendingUsers(pending) {
-  if (!pending.length) return '<div class="glass pad" style="text-align:center;color:#cdb7ad">No pending registrations</div>';
-  let html = '<div class="glass pad"><h3 style="margin-top:0">Pending Approvals (' + pending.length + ')</h3>';
-  for (const u of pending) {
-    const created = new Date(u.created_at * 1000).toLocaleString();
-    html += `<div class="glass" style="margin:8px 0;padding:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-      <div><b>${u.username}</b><br><small style="color:#cdb7ad">Requested: ${created}</small></div>
-      <div class="btns"><button class="cta" onclick="approveUser('${u.id}')">✅ Approve</button><button class="ghost" onclick="rejectUser('${u.id}')">❌ Reject</button></div>
-    </div>`;
-  }
-  html += '</div>';
-  return html;
+function renderAdminUsers() {
+  const users = getFilteredUsers();
+  const p = adminPagination.users;
+  const totalPages = Math.ceil(users.length / p.perPage);
+  const pageUsers = users.slice((p.page - 1) * p.perPage, p.page * p.perPage);
+
+  return `
+    <div class="glass pad" style="margin-bottom:16px">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <input id="userSearch" placeholder="Search users..." value="${adminFilters.users.search || ''}" oninput="adminFilters.users.search=this.value;adminPagination.users.page=1;renderAdminUsers()" style="padding:8px;flex:1;min-width:200px">
+        <select id="userStatusFilter" onchange="adminFilters.users.status=this.value;adminPagination.users.page=1;renderAdminUsers()" style="padding:8px">
+          <option value="">All Status</option>
+          <option value="pending" ${adminFilters.users.status==='pending'?'selected':''}>Pending</option>
+          <option value="approved" ${adminFilters.users.status==='approved'?'selected':''}>Approved</option>
+          <option value="rejected" ${adminFilters.users.status==='rejected'?'selected':''}>Rejected</option>
+        </select>
+        <select id="userRoleFilter" onchange="adminFilters.users.role=this.value;adminPagination.users.page=1;renderAdminUsers()" style="padding:8px">
+          <option value="">All Roles</option>
+          <option value="admin" ${adminFilters.users.role==='admin'?'selected':''}>Admins</option>
+          <option value="user" ${adminFilters.users.role==='user'?'selected':''}>Regular Users</option>
+        </select>
+        <button class="ghost" onclick="exportUsers()">📥 Export CSV</button>
+        <div id="bulkActions" style="display:${adminSelectedRows.size?'flex':'none'};gap:8px;margin-left:auto">
+          <button class="ghost" onclick="bulkUserAction('approve')">✅ Approve Selected</button>
+          <button class="ghost" onclick="bulkUserAction('reject')">❌ Reject Selected</button>
+          <button class="ghost" onclick="bulkUserAction('ban')">🚫 Ban Selected</button>
+          <button class="ghost" onclick="adminSelectedRows.clear();renderAdminUsers()">Clear Selection</button>
+        </div>
+      </div>
+    </div>
+    <div class="glass pad" style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+        <thead>
+          <tr style="border-bottom:1px solid rgba(255,120,60,.3);text-align:left">
+            <th style="padding:8px;width:40px"><input type="checkbox" onchange="toggleSelectAll(this.checked)"></th>
+            <th style="padding:8px;cursor:pointer" onclick="adminSort.users={col:'username',dir:adminSort.users.col==='username'&&adminSort.users.dir==='asc'?'desc':'asc'};renderAdminUsers()">Username ${adminSort.users.col==='username'?(adminSort.users.dir==='asc'?'▲':'▼'):''}</th>
+            <th style="padding:8px">Status</th>
+            <th style="padding:8px;cursor:pointer" onclick="adminSort.users={col:'is_admin',dir:adminSort.users.col==='is_admin'&&adminSort.users.dir==='asc'?'desc':'asc'};renderAdminUsers()">Admin ${adminSort.users.col==='is_admin'?(adminSort.users.dir==='asc'?'▲':'▼'):''}</th>
+            <th style="padding:8px;cursor:pointer" onclick="adminSort.users={col:'created_at',dir:adminSort.users.col==='created_at'&&adminSort.users.dir==='asc'?'desc':'asc'};renderAdminUsers()">Created ${adminSort.users.col==='created_at'?(adminSort.users.dir==='asc'?'▲':'▼'):''}</th>
+            <th style="padding:8px">Last Login</th>
+            <th style="padding:8px">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${pageUsers.map(u => {
+            const created = new Date(u.created_at * 1000).toLocaleDateString();
+            const lastLogin = u.last_login ? new Date(u.last_login * 1000).toLocaleDateString() : 'Never';
+            const statusColor = u.registration_status === 'approved' ? '#4ade80' : u.registration_status === 'pending' ? '#fbbf24' : '#f87171';
+            const selected = adminSelectedRows.has(u.id);
+            return `<tr style="border-bottom:1px solid rgba(255,120,60,.1)${selected?'background:rgba(255,138,42,.1)':''}">
+              <td style="padding:8px"><input type="checkbox" ${selected?'checked':''} onchange="toggleRowSelect('${u.id}',this.checked)"></td>
+              <td style="padding:8px"><b>${u.username}</b></td>
+              <td style="padding:8px"><span style="color:${statusColor};font-weight:600;text-transform:capitalize">${u.registration_status}</span></td>
+              <td style="padding:8px"><label style="display:flex;align-items:center;gap:6px"><input type="checkbox" ${u.is_admin ? 'checked' : ''} onchange="toggleAdminStatus('${u.id}', this.checked)"><span style="font-size:.8rem">Admin</span></label></td>
+              <td style="padding:8px;color:#cdb7ad">${created}</td>
+              <td style="padding:8px;color:#cdb7ad">${lastLogin}</td>
+              <td style="padding:8px">
+                <div class="btns" style="gap:4px">
+                  ${u.registration_status === 'pending' ? `<button class="cta" style="padding:4px 8px;font-size:.75rem" onclick="approveUser('${u.id}')">✅ Approve</button><button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="rejectUser('${u.id}')">❌ Reject</button>` : ''}
+                  <button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="banUser('${u.id}')" title="Ban user">🚫</button>
+                  <button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="deleteUser('${u.id}')" title="Delete user">🗑️</button>
+                </div>
+              </td>
+            </tr>`;
+          }).join('') || '<tr><td colspan="7" style="padding:20px;text-align:center;color:#cdb7ad">No users found</td></tr>'}
+        </tbody>
+      </table>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;flex-wrap:wrap;gap:12px">
+        <div style="color:#cdb7ad;font-size:.9rem">Showing ${pageUsers.length} of ${users.length} users</div>
+        <div class="btns">
+          <button class="ghost" onclick="adminPagination.users.page=Math.max(1,adminPagination.users.page-1);renderAdminUsers()" ${p.page===1?'disabled':''}>← Prev</button>
+          <span style="padding:0 12px;color:#cdb7ad">Page ${p.page} / ${totalPages}</span>
+          <button class="ghost" onclick="adminPagination.users.page=Math.min(${totalPages},adminPagination.users.page+1);renderAdminUsers()" ${p.page===totalPages?'disabled':''}>Next →</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function getFilteredRooms() {
+  let rooms = [...adminData.rooms];
+  const f = adminFilters.rooms;
+  if (f.search) rooms = rooms.filter(r => r.code.toLowerCase().includes(f.search.toLowerCase()) || r.host_name.toLowerCase().includes(f.search.toLowerCase()));
+  if (f.status) rooms = rooms.filter(r => r.status === f.status);
+  return rooms;
 }
 
 function renderAdminRooms() {
-  let html = '<div class="glass pad" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85rem"><thead><tr style="border-bottom:1px solid rgba(255,120,60,.3);text-align:left"><th style="padding:8px">Code</th><th style="padding:8px">Host</th><th style="padding:8px">Guest</th><th style="padding:8px">Status</th><th style="padding:8px">Time Control</th><th style="padding:8px">Created</th><th style="padding:8px">Updated</th></tr></thead><tbody>';
-  for (const r of adminData.rooms) {
-    const created = new Date(r.created_at * 1000).toLocaleString();
-    const updated = new Date(r.updated_at * 1000).toLocaleString();
-    const statusColor = r.status === 'playing' ? '#4ade80' : r.status === 'waiting' ? '#fbbf24' : '#f87171';
-    const guest = r.guest_name || (r.guest_id ? 'Connected' : 'Waiting...');
-    html += `<tr style="border-bottom:1px solid rgba(255,120,60,.1)">
-      <td style="padding:8px;font-family:monospace;font-weight:700">${r.code}</td>
-      <td style="padding:8px">${r.host_name}</td>
-      <td style="padding:8px">${guest}</td>
-      <td style="padding:8px"><span style="color:${statusColor};font-weight:600;text-transform:capitalize">${r.status}</span></td>
-      <td style="padding:8px;font-family:monospace">${r.time_control}</td>
-      <td style="padding:8px;color:#cdb7ad">${created}</td>
-      <td style="padding:8px;color:#cdb7ad">${updated}</td>
-    </tr>`;
-  }
-  html += '</tbody></table></div>';
-  return html;
+  const rooms = getFilteredRooms();
+
+  return `
+    <div class="glass pad" style="margin-bottom:16px">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <input id="roomSearch" placeholder="Search rooms..." value="${adminFilters.rooms.search || ''}" oninput="adminFilters.rooms.search=this.value;renderAdminRooms()" style="padding:8px;flex:1;min-width:200px">
+        <select onchange="adminFilters.rooms.status=this.value;renderAdminRooms()" style="padding:8px">
+          <option value="">All Status</option>
+          <option value="waiting" ${adminFilters.rooms.status==='waiting'?'selected':''}>Waiting</option>
+          <option value="playing" ${adminFilters.rooms.status==='playing'?'selected':''}>Playing</option>
+          <option value="finished" ${adminFilters.rooms.status==='finished'?'selected':''}>Finished</option>
+        </select>
+        <button class="ghost" onclick="loadAdminRooms()">🔄 Refresh</button>
+      </div>
+    </div>
+    <div class="glass pad" style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+        <thead><tr style="border-bottom:1px solid rgba(255,120,60,.3);text-align:left">
+          <th style="padding:8px">Code</th><th style="padding:8px">Host</th><th style="padding:8px">Guest</th><th style="padding:8px">Status</th><th style="padding:8px">Time Control</th><th style="padding:8px">Created</th><th style="padding:8px">Updated</th><th style="padding:8px">Actions</th>
+        </tr></thead>
+        <tbody>
+          ${rooms.map(r => {
+            const created = new Date(r.created_at * 1000).toLocaleString();
+            const updated = new Date(r.updated_at * 1000).toLocaleString();
+            const statusColor = r.status === 'playing' ? '#4ade80' : r.status === 'waiting' ? '#fbbf24' : '#f87171';
+            const guest = r.guest_name || (r.guest_id ? 'Connected' : 'Waiting...');
+            const hasState = r.game_state && r.game_state !== 'null';
+            return `<tr style="border-bottom:1px solid rgba(255,120,60,.1)">
+              <td style="padding:8px;font-family:monospace;font-weight:700">${r.code}</td>
+              <td style="padding:8px">${r.host_name}</td>
+              <td style="padding:8px">${guest}</td>
+              <td style="padding:8px"><span style="color:${statusColor};font-weight:600;text-transform:capitalize">${r.status}</span></td>
+              <td style="padding:8px;font-family:monospace">${r.time_control}</td>
+              <td style="padding:8px;color:#cdb7ad">${created}</td>
+              <td style="padding:8px;color:#cdb7ad">${updated}</td>
+              <td style="padding:8px"><div class="btns" style="gap:4px">
+                ${hasState ? `<button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="viewRoomGame('${r.id}')">👁️ View Game</button>` : ''}
+                ${r.status === 'playing' ? `<button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="closeRoom('${r.id}')">⛔ Close</button>` : ''}
+              </div></td>
+            </tr>`;
+          }).join('') || '<tr><td colspan="8" style="padding:20px;text-align:center;color:#cdb7ad">No rooms found</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function getFilteredGames() {
+  let games = [...adminData.games];
+  const f = adminFilters.games;
+  if (f.search) games = games.filter(g => (g.white_name + g.black_name).toLowerCase().includes(f.search.toLowerCase()));
+  if (f.mode) games = games.filter(g => g.mode === f.mode);
+  if (f.result) games = games.filter(g => g.result === f.result);
+  games.sort((a, b) => {
+    const dir = adminSort.games.dir === 'asc' ? 1 : -1;
+    return dir * (a[adminSort.games.col] > b[adminSort.games.col] ? 1 : -1);
+  });
+  return games;
 }
 
 function renderAdminGames() {
-  let html = '<div class="glass pad" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85rem"><thead><tr style="border-bottom:1px solid rgba(255,120,60,.3);text-align:left"><th style="padding:8px">White</th><th style="padding:8px">Black</th><th style="padding:8px">Mode</th><th style="padding:8px">Result</th><th style="padding:8px">Time Control</th><th style="padding:8px">Started</th><th style="padding:8px">Ended</th><th style="padding:8px">Moves</th></tr></thead><tbody>';
-  for (const g of adminData.games.slice(0, 100)) {
-    const started = new Date(g.started_at * 1000).toLocaleString();
-    const ended = g.ended_at ? new Date(g.ended_at * 1000).toLocaleString() : '—';
-    const resultColor = g.result === 'white' ? '#4ade80' : g.result === 'black' ? '#f87171' : g.result === 'draw' ? '#fbbf24' : '#cdb7ad';
-    const moves = g.moves ? (Array.isArray(g.moves) ? g.moves.length : (JSON.parse(g.moves || '[]').length)) : 0;
-    html += `<tr style="border-bottom:1px solid rgba(255,120,60,.1)">
-      <td style="padding:8px">${g.white_name || 'Unknown'}</td>
-      <td style="padding:8px">${g.black_name || 'Unknown'}</td>
-      <td style="padding:8px">${g.mode}</td>
-      <td style="padding:8px"><span style="color:${resultColor};font-weight:600;text-transform:capitalize">${g.result || 'ongoing'}</span></td>
-      <td style="padding:8px;font-family:monospace">${g.time_control || '—'}</td>
-      <td style="padding:8px;color:#cdb7ad">${started}</td>
-      <td style="padding:8px;color:#cdb7ad">${ended}</td>
-      <td style="padding:8px;font-family:monospace">${moves}</td>
-    </tr>`;
-  }
-  html += '</tbody></table></div>';
-  return html;
+  const games = getFilteredGames();
+  const p = adminPagination.games;
+  const totalPages = Math.ceil(games.length / p.perPage);
+  const pageGames = games.slice((p.page - 1) * p.perPage, p.page * p.perPage);
+
+  return `
+    <div class="glass pad" style="margin-bottom:16px">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <input placeholder="Search players..." value="${adminFilters.games.search || ''}" oninput="adminFilters.games.search=this.value;adminPagination.games.page=1;renderAdminGames()" style="padding:8px;flex:1;min-width:200px">
+        <select onchange="adminFilters.games.mode=this.value;adminPagination.games.page=1;renderAdminGames()" style="padding:8px">
+          <option value="">All Modes</option>
+          <option value="cpu" ${adminFilters.games.mode==='cpu'?'selected':''}>vs Computer</option>
+          <option value="multiplayer" ${adminFilters.games.mode==='multiplayer'?'selected':''}>Multiplayer</option>
+        </select>
+        <select onchange="adminFilters.games.result=this.value;adminPagination.games.page=1;renderAdminGames()" style="padding:8px">
+          <option value="">All Results</option>
+          <option value="white" ${adminFilters.games.result==='white'?'selected':''}>White Won</option>
+          <option value="black" ${adminFilters.games.result==='black'?'selected':''}>Black Won</option>
+          <option value="draw" ${adminFilters.games.result==='draw'?'selected':''}>Draw</option>
+        </select>
+        <button class="ghost" onclick="exportGames()">📥 Export CSV</button>
+        <button class="ghost" onclick="loadAdminGames()">🔄 Refresh</button>
+      </div>
+    </div>
+    <div class="glass pad" style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+        <thead><tr style="border-bottom:1px solid rgba(255,120,60,.3);text-align:left">
+          <th style="padding:6px;cursor:pointer" onclick="adminSort.games={col:'started_at',dir:adminSort.games.col==='started_at'&&adminSort.games.dir==='asc'?'desc':'asc'};renderAdminGames()">Started ${adminSort.games.col==='started_at'?(adminSort.games.dir==='asc'?'▲':'▼'):''}</th>
+          <th style="padding:6px">White</th><th style="padding:6px">Black</th>
+          <th style="padding:6px">Mode</th><th style="padding:6px">Result</th>
+          <th style="padding:6px">Time Control</th><th style="padding:6px">Moves</th><th style="padding:6px">Actions</th>
+        </tr></thead>
+        <tbody>
+          ${pageGames.map(g => {
+            const started = new Date(g.started_at * 1000).toLocaleString();
+            const resultColor = g.result === 'white' ? '#4ade80' : g.result === 'black' ? '#f87171' : g.result === 'draw' ? '#fbbf24' : '#cdb7ad';
+            const moves = g.moves ? (Array.isArray(g.moves) ? g.moves.length : (JSON.parse(g.moves || '[]').length)) : 0;
+            return `<tr style="border-bottom:1px solid rgba(255,120,60,.1)">
+              <td style="padding:6px;color:#cdb7ad;white-space:nowrap">${started}</td>
+              <td style="padding:6px">${g.white_name || 'Unknown'}</td>
+              <td style="padding:6px">${g.black_name || 'Unknown'}</td>
+              <td style="padding:6px">${g.mode}</td>
+              <td style="padding:6px"><span style="color:${resultColor};font-weight:600;text-transform:capitalize">${g.result || 'ongoing'}</span></td>
+              <td style="padding:6px;font-family:monospace;font-size:.8rem">${g.time_control || '—'}</td>
+              <td style="padding:6px;font-family:monospace">${moves}</td>
+              <td style="padding:6px"><div class="btns" style="gap:4px">
+                <button class="ghost" style="padding:3px 6px;font-size:.7rem" onclick="viewGameReplay('${g.id}')">👁️ Replay</button>
+                <button class="ghost" style="padding:3px 6px;font-size:.7rem" onclick="deleteGame('${g.id}')">🗑️</button>
+              </div></td>
+            </tr>`;
+          }).join('') || '<tr><td colspan="9" style="padding:20px;text-align:center;color:#cdb7ad">No games found</td></tr>'}
+        </tbody>
+      </table>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;flex-wrap:wrap;gap:12px">
+        <div style="color:#cdb7ad;font-size:.9rem">Showing ${pageGames.length} of ${games.length} games</div>
+        <div class="btns">
+          <button class="ghost" onclick="adminPagination.games.page=Math.max(1,adminPagination.games.page-1);renderAdminGames()" ${p.page===1?'disabled':''}>← Prev</button>
+          <span style="padding:0 12px;color:#cdb7ad">Page ${p.page} / ${totalPages}</span>
+          <button class="ghost" onclick="adminPagination.games.page=Math.min(${totalPages},adminPagination.games.page+1);renderAdminGames()" ${p.page===totalPages?'disabled':''}>Next →</button>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function renderAdminTournaments() {
-  let html = '<div class="glass pad"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="margin:0">Tournaments</h3><button class="cta" onclick="createTournament()">➕ Create Tournament</button></div>';
-  if (!adminData.tournaments.length) {
-    html += '<div style="text-align:center;color:#cdb7ad;padding:20px">No tournaments yet</div>';
-  } else {
-    html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85rem"><thead><tr style="border-bottom:1px solid rgba(255,120,60,.3);text-align:left"><th style="padding:8px">Name</th><th style="padding:8px">Status</th><th style="padding:8px">Start Time</th><th style="padding:8px">Time Control</th><th style="padding:8px">Max Players</th><th style="padding:8px">Creator</th><th style="padding:8px">Actions</th></tr></thead><tbody>';
-    for (const t of adminData.tournaments) {
-      const start = new Date(t.start_time * 1000).toLocaleString();
-      const statusColor = t.status === 'ongoing' ? '#4ade80' : t.status === 'registration' ? '#60a5fa' : t.status === 'completed' ? '#a78bfa' : t.status === 'cancelled' ? '#f87171' : '#fbbf24';
-      html += `<tr style="border-bottom:1px solid rgba(255,120,60,.1)">
-        <td style="padding:8px"><b>${t.name}</b><br><small style="color:#cdb7ad">${t.description || ''}</small></td>
-        <td style="padding:8px"><span style="color:${statusColor};font-weight:600;text-transform:capitalize">${t.status}</span></td>
-        <td style="padding:8px;color:#cdb7ad">${start}</td>
-        <td style="padding:8px;font-family:monospace">${t.time_control}</td>
-        <td style="padding:8px">${t.max_players}</td>
-        <td style="padding:8px">${t.creator_name || 'Unknown'}</td>
-        <td style="padding:8px"><div class="btns" style="gap:4px">
-          <button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="updateTournamentStatus('${t.id}', t.status === 'upcoming' ? 'registration' : t.status === 'registration' ? 'ongoing' : 'completed')">Next Status</button>
-          <button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="deleteTournament('${t.id}')">🗑️</button>
-        </div></td>
-      </tr>`;
-    }
-    html += '</tbody></table></div>';
-  }
-  html += '</div>';
-  return html;
+  const tournaments = adminData.tournaments.filter(t => {
+    const f = adminFilters.tournaments;
+    if (f.search && !t.name.toLowerCase().includes(f.search.toLowerCase())) return false;
+    if (f.status && t.status !== f.status) return false;
+    return true;
+  });
+
+  return `
+    <div class="glass pad" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <input placeholder="Search tournaments..." value="${adminFilters.tournaments.search || ''}" oninput="adminFilters.tournaments.search=this.value;renderAdminTournaments()" style="padding:8px;min-width:200px">
+          <select onchange="adminFilters.tournaments.status=this.value;renderAdminTournaments()" style="padding:8px">
+            <option value="">All Status</option>
+            <option value="upcoming" ${adminFilters.tournaments.status==='upcoming'?'selected':''}>Upcoming</option>
+            <option value="registration" ${adminFilters.tournaments.status==='registration'?'selected':''}>Registration</option>
+            <option value="ongoing" ${adminFilters.tournaments.status==='ongoing'?'selected':''}>Ongoing</option>
+            <option value="completed" ${adminFilters.tournaments.status==='completed'?'selected':''}>Completed</option>
+            <option value="cancelled" ${adminFilters.tournaments.status==='cancelled'?'selected':''}>Cancelled</option>
+          </select>
+        </div>
+        <button class="cta" onclick="createTournament()">➕ Create Tournament</button>
+      </div>
+    </div>
+    ${!tournaments.length ? '<div class="glass pad" style="text-align:center;color:#cdb7ad">No tournaments found</div>' : `
+    <div class="glass pad" style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+        <thead><tr style="border-bottom:1px solid rgba(255,120,60,.3);text-align:left">
+          <th style="padding:8px">Name</th><th style="padding:8px">Status</th><th style="padding:8px">Start Time</th><th style="padding:8px">Time Control</th><th style="padding:8px">Max Players</th><th style="padding:8px">Creator</th><th style="padding:8px">Actions</th>
+        </tr></thead>
+        <tbody>
+          ${tournaments.map(t => {
+            const start = new Date(t.start_time * 1000).toLocaleString();
+            const statusColor = t.status === 'ongoing' ? '#4ade80' : t.status === 'registration' ? '#60a5fa' : t.status === 'completed' ? '#a78bfa' : t.status === 'cancelled' ? '#f87171' : '#fbbf24';
+            return `<tr style="border-bottom:1px solid rgba(255,120,60,.1)">
+              <td style="padding:8px"><b>${t.name}</b><br><small style="color:#cdb7ad">${t.description || ''}</small></td>
+              <td style="padding:8px"><span style="color:${statusColor};font-weight:600;text-transform:capitalize">${t.status}</span></td>
+              <td style="padding:8px;color:#cdb7ad">${start}</td>
+              <td style="padding:8px;font-family:monospace">${t.time_control}</td>
+              <td style="padding:8px">${t.max_players}</td>
+              <td style="padding:8px">${t.creator_name || 'Unknown'}</td>
+              <td style="padding:8px"><div class="btns" style="gap:4px">
+                <button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="editTournament('${t.id}')">✏️ Edit</button>
+                <button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="viewTournamentRegistrations('${t.id}')">👥 Regs</button>
+                <button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="updateTournamentStatus('${t.id}', '${t.status === 'upcoming' ? 'registration' : t.status === 'registration' ? 'ongoing' : 'completed'}')">Next Status</button>
+                <button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="deleteTournament('${t.id}')">🗑️</button>
+              </div></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    `}
+  `;
 }
 
 function renderAdminAnnouncements() {
-  let html = '<div class="glass pad"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="margin:0">Announcements</h3><button class="cta" onclick="createAnnouncement()">📢 Create Announcement</button></div>';
-  if (!adminData.announcements.length) {
-    html += '<div style="text-align:center;color:#cdb7ad;padding:20px">No announcements yet</div>';
-  } else {
-    html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85rem"><thead><tr style="border-bottom:1px solid rgba(255,120,60,.3);text-align:left"><th style="padding:8px">Title</th><th style="padding:8px">Type</th><th style="padding:8px">Audience</th><th style="padding:8px">Active</th><th style="padding:8px">Created</th><th style="padding:8px">Expires</th><th style="padding:8px">Actions</th></tr></thead><tbody>';
-    for (const a of adminData.announcements) {
-      const created = new Date(a.created_at * 1000).toLocaleString();
-      const expires = a.expires_at ? new Date(a.expires_at * 1000).toLocaleString() : 'Never';
-      const typeColors = { info: '#60a5fa', warning: '#fbbf24', success: '#4ade80', tournament: '#a78bfa' };
-      html += `<tr style="border-bottom:1px solid rgba(255,120,60,.1)">
-        <td style="padding:8px"><b>${a.title}</b><br><small style="color:#cdb7ad">${a.content.substring(0, 80)}${a.content.length > 80 ? '...' : ''}</small></td>
-        <td style="padding:8px"><span style="color:${typeColors[a.type] || '#cdb7ad'};font-weight:600;text-transform:capitalize">${a.type}</span></td>
-        <td style="padding:8px;text-transform:capitalize">${a.target_audience}</td>
-        <td style="padding:8px"><span style="color:${a.is_active ? '#4ade80' : '#f87171'};font-weight:600">${a.is_active ? 'Yes' : 'No'}</span></td>
-        <td style="padding:8px;color:#cdb7ad">${created}</td>
-        <td style="padding:8px;color:#cdb7ad">${expires}</td>
-        <td style="padding:8px"><div class="btns" style="gap:4px">
-          <button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="updateAnnouncement('${a.id}')">✏️ Edit</button>
-          <button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="deleteAnnouncement('${a.id}')">🗑️</button>
-        </div></td>
-      </tr>`;
-    }
-    html += '</tbody></table></div>';
+  return `
+    <div class="glass pad" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+        <h3 style="margin:0">Announcements</h3>
+        <button class="cta" onclick="createAnnouncement()">📢 Create Announcement</button>
+      </div>
+    </div>
+    ${!adminData.announcements.length ? '<div class="glass pad" style="text-align:center;color:#cdb7ad">No announcements yet</div>' : `
+    <div class="glass pad" style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+        <thead><tr style="border-bottom:1px solid rgba(255,120,60,.3);text-align:left">
+          <th style="padding:8px">Title</th><th style="padding:8px">Type</th><th style="padding:8px">Audience</th><th style="padding:8px">Active</th><th style="padding:8px">Created</th><th style="padding:8px">Expires</th><th style="padding:8px">Actions</th>
+        </tr></thead>
+        <tbody>
+          ${adminData.announcements.map(a => {
+            const created = new Date(a.created_at * 1000).toLocaleString();
+            const expires = a.expires_at ? new Date(a.expires_at * 1000).toLocaleString() : 'Never';
+            const typeColors = { info: '#60a5fa', warning: '#fbbf24', success: '#4ade80', tournament: '#a78bfa' };
+            return `<tr style="border-bottom:1px solid rgba(255,120,60,.1)">
+              <td style="padding:8px"><b>${a.title}</b><br><small style="color:#cdb7ad">${a.content.substring(0, 80)}${a.content.length > 80 ? '...' : ''}</small></td>
+              <td style="padding:8px"><span style="color:${typeColors[a.type] || '#cdb7ad'};font-weight:600;text-transform:capitalize">${a.type}</span></td>
+              <td style="padding:8px;text-transform:capitalize">${a.target_audience}</td>
+              <td style="padding:8px"><label style="display:flex;align-items:center;gap:6px"><input type="checkbox" ${a.is_active ? 'checked' : ''} onchange="toggleAnnouncementActive('${a.id}', this.checked)"></label></td>
+              <td style="padding:8px;color:#cdb7ad">${created}</td>
+              <td style="padding:8px;color:#cdb7ad">${expires}</td>
+              <td style="padding:8px"><div class="btns" style="gap:4px">
+                <button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="updateAnnouncement('${a.id}')">✏️ Edit</button>
+                <button class="ghost" style="padding:4px 8px;font-size:.75rem" onclick="deleteAnnouncement('${a.id}')">🗑️</button>
+              </div></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    `}
+  `;
+}
+
+// ============ UTILITY FUNCTIONS ============
+function createModal(title, content) {
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML = `
+    <div class="glass" style="width:100%;max-width:500px;max-height:90vh;overflow:auto;padding:24px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3 style="margin:0">${title}</h3>
+        <button class="ghost ic" onclick="this.closest('div[style*=\"fixed\"]').remove()" style="padding:8px">✕</button>
+      </div>
+      ${content}
+    </div>
+  `;
+  document.body.appendChild(modal);
+  return modal;
+}
+
+function showToast(message, type = 'info') {
+  const colors = { success: '#4ade80', error: '#f87171', warning: '#fbbf24', info: '#60a5fa' };
+  const toast = document.createElement('div');
+  toast.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:200;padding:14px 20px;border-radius:8px;color:#fff;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,.4);animation:slideIn .3s ease;background:${colors[type] || colors.info}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.animation = 'slideOut .3s ease'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+function toggleSelectAll(checked) {
+  const users = getFilteredUsers();
+  const p = adminPagination.users;
+  const pageUsers = users.slice((p.page - 1) * p.perPage, p.page * p.perPage);
+  pageUsers.forEach(u => {
+    if (checked) adminSelectedRows.add(u.id);
+    else adminSelectedRows.delete(u.id);
+  });
+  renderAdminUsers();
+}
+
+function toggleRowSelect(userId, checked) {
+  if (checked) adminSelectedRows.add(userId);
+  else adminSelectedRows.delete(userId);
+  const bulkActions = document.getElementById('bulkActions');
+  if (bulkActions) bulkActions.style.display = adminSelectedRows.size ? 'flex' : 'none';
+}
+
+function downloadCSV(data, filename) {
+  if (!data.length) return;
+  const headers = Object.keys(data[0]);
+  const csv = [headers.join(','), ...data.map(row => headers.map(h => '"' + String(row[h] || '').replace(/"/g, '""') + '"').join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ============ REAL-TIME SOCKET CONNECTION ============
+function connectAdminSocket() {
+  if (adminSocket) return;
+  adminSocket = io({ transports: ['websocket', 'polling'] });
+
+  adminSocket.on('connect', () => {
+    console.log('Admin socket connected');
+    adminSocket.emit('admin:subscribe', { userId: cfg.user ? users()[cfg.user.toLowerCase()]?.id : null });
+  });
+
+  adminSocket.on('admin:stats', (data) => {
+    adminData.stats = data;
+    if (adminTabActive === 'dashboard') renderAdminDashboard();
+  });
+
+  adminSocket.on('admin:room_update', (data) => {
+    if (adminTabActive === 'rooms') loadAdminRooms();
+    if (adminTabActive === 'dashboard') loadAdminStats();
+  });
+
+  adminSocket.on('admin:game_update', (data) => {
+    if (adminTabActive === 'games') loadAdminGames();
+    if (adminTabActive === 'dashboard') loadAdminStats();
+  });
+
+  adminSocket.on('admin:user_update', (data) => {
+    if (adminTabActive === 'users') loadAdminUsers();
+    if (adminTabActive === 'dashboard') loadAdminStats();
+  });
+
+  adminSocket.on('disconnect', () => {
+    console.log('Admin socket disconnected');
+    setTimeout(connectAdminSocket, 5000);
+  });
+}
+
+// ============ TAB SWITCHING ============
+async function switchAdminTab(tab) {
+  adminTabActive = tab;
+  adminSelectedRows.clear();
+  document.querySelectorAll('#adminTabs button').forEach(b => {
+    b.classList.toggle('on', b.dataset.tab === tab);
+    b.setAttribute('aria-pressed', b.dataset.tab === tab);
+  });
+
+  if (adminAutoRefresh) { clearInterval(adminAutoRefresh); adminAutoRefresh = null; }
+
+  if (['dashboard', 'rooms', 'users'].includes(tab)) {
+    adminAutoRefresh = setInterval(() => {
+      if (tab === 'dashboard') loadAdminStats();
+      else if (tab === 'rooms') loadAdminRooms();
+      else if (tab === 'users') loadAdminUsers();
+    }, 30000);
   }
-  html += '</div>';
-  return html;
+
+  await renderAdminContent();
 }
 
 async function renderAdminContent() {
   const content = $('adminContent');
   if (!content) return;
-  switch (adminTabActive) {
-    case 'dashboard': content.innerHTML = renderAdminDashboard(); loadAdminStats(); break;
-    case 'users':
-      content.innerHTML = renderAdminUsers() + '<div style="margin-top:20px" id="pendingUsersSection">Loading...</div>';
-      await loadAdminUsers();
-      const pendingHtml = renderAdminPendingUsers(adminData.users.filter(u => u.registration_status === 'pending'));
-      const section = $('pendingUsersSection');
-      if (section) section.outerHTML = '<div style="margin-top:20px">' + pendingHtml + '</div>';
-      break;
-    case 'rooms': content.innerHTML = renderAdminRooms(); loadAdminRooms(); break;
-    case 'games': content.innerHTML = renderAdminGames(); loadAdminGames(); break;
-    case 'tournaments': content.innerHTML = renderAdminTournaments(); loadAdminTournaments(); break;
-    case 'announcements': content.innerHTML = renderAdminAnnouncements(); loadAdminAnnouncements(); break;
-  }
-}
 
-function switchAdminTab(tab) {
-  adminTabActive = tab;
-  document.querySelectorAll('#adminTabs button').forEach(b => {
-    b.classList.toggle('on', b.dataset.tab === tab);
-    b.setAttribute('aria-pressed', b.dataset.tab === tab);
-  });
-  renderAdminContent();
+  content.innerHTML = '<div class="glass pad" style="text-align:center;color:#cdb7ad">Loading...</div>';
+
+  switch (adminTabActive) {
+    case 'dashboard':
+      await loadAdminStats();
+      await loadAdminGames();
+      await loadAdminRooms();
+      content.innerHTML = renderAdminDashboard();
+      break;
+    case 'users':
+      await loadAdminUsers();
+      content.innerHTML = renderAdminUsers();
+      break;
+    case 'rooms':
+      await loadAdminRooms();
+      content.innerHTML = renderAdminRooms();
+      break;
+    case 'games':
+      await loadAdminGames();
+      content.innerHTML = renderAdminGames();
+      break;
+    case 'tournaments':
+      await loadAdminTournaments();
+      content.innerHTML = renderAdminTournaments();
+      break;
+    case 'announcements':
+      await loadAdminAnnouncements();
+      content.innerHTML = renderAdminAnnouncements();
+      break;
+    case 'analytics':
+      await loadAdminAnalytics();
+      content.innerHTML = renderAdminAnalytics();
+      break;
+    case 'settings':
+      await loadAdminSettings();
+      content.innerHTML = renderAdminSettings();
+      break;
+    case 'logs':
+      await loadAdminLogs();
+      content.innerHTML = renderAdminLogs();
+      break;
+  }
 }
 
 document.querySelectorAll('#adminTabs button').forEach(b => {
   b.onclick = () => switchAdminTab(b.dataset.tab);
 });
 
+// ============ NAVIGATION INTEGRATION ============
 $('adminLo').onclick = () => nav('setup');
 
 function checkAdminAndNav() {
@@ -834,7 +1733,6 @@ function checkAdminAndNav() {
   const isAdminBackend = LS.get('cs_admin') === true;
   const isAdmin = isAdminLocal || isAdminBackend;
   if (isAdmin && page !== 'admin') {
-    // Add admin tab to navigation
     if (!document.getElementById('adminTabBtn')) {
       const btn = document.createElement('button');
       btn.id = 'adminTabBtn';
@@ -847,7 +1745,6 @@ function checkAdminAndNav() {
   return isAdmin;
 }
 
-// Update nav function to handle admin page
 const originalNav = nav;
 nav = function(p) {
   if (p === 'admin') {
@@ -861,11 +1758,11 @@ nav = function(p) {
     $('adminUser').textContent = cfg.user || '';
     const user = users()[cfg.user.toLowerCase()];
     $('adminRec').textContent = (user && user.is_admin) || LS.get('cs_admin') ? 'Administrator access granted' : '';
+    connectAdminSocket();
     switchAdminTab('dashboard');
   }
 };
 
-// Update route to handle admin
 const originalRoute = route;
 route = function() {
   let p = (location.hash || '').slice(2);
@@ -880,15 +1777,21 @@ route = function() {
   nav(p);
 };
 
-// Update paintSetup to check admin
 const originalPaintSetup = paintSetup;
 paintSetup = function() {
   originalPaintSetup();
   checkAdminAndNav();
 };
 
-// Initialize admin check on load
 setTimeout(checkAdminAndNav, 100);
+
+// Add slide animations for toasts
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+`;
+document.head.appendChild(style);
 
 setInterval(()=>{const n=performance.now(),d=n-lastT;lastT=n;if(page==='play'&&tcb&&clockSide&&!over){clk[clockSide]-=d;if(clk[clockSide]<=0){clk[clockSide]=0;flag(clockSide);}}rclk();},100);
 mode=cfg.mode;level=cfg.level;help=cfg.help;init();route();requestAnimationFrame(loop);
