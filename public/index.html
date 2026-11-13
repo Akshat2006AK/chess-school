@@ -138,8 +138,8 @@ label.f{display:block;margin:12px 0 4px;color:#d9c2b8;font-size:.9rem}
 <div id="res" hidden><div class="glass" role="dialog" aria-live="polite"><h2 id="rtt"></h2><div id="rsb"></div>
  <div class="btns"><button id="rm" class="on">Rematch</button><button id="rsu">Change setup</button><button id="rvw">View board</button></div>
  <p style="margin-top:16px;text-align:center;color:#887; font-size:0.8rem;">Made by Avantika ❤️</p></div></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="three.min.js"></script>
+<script src="socket.io.min.js"></script>
 <script>
 //ENG-START
 const V={p:100,n:320,b:330,r:500,q:900,k:20000};
@@ -304,7 +304,7 @@ const pcs=new T.Group(),mkg=new T.Group();sc.add(pcs,mkg);
 const kill=o=>o.traverse(c=>{if(c.geometry)c.geometry.dispose()});
 function rebuild(){pcs.children.forEach(kill);pcs.clear();PM=Array(64).fill(null);for(let i=0;i<64;i++)if(B[i]){const g=build(B[i].toLowerCase(),isW(B[i]));g.position.set((i&7)-3.5,.11,(i>>3)-3.5);g.rotation.y=isW(B[i])?Math.PI:0;pcs.add(g);PM[i]=g;}}
 function markers(){mkg.clear();if(sel===null||help==='off')return;for(const m of legal.filter((x,j)=>legal.findIndex(y=>y[1]===x[1])===j)){const t=m[1],cap=capSq(B,m)>=0,risky=help==='full'&&pseudo(make(B,m),turn==='w'?'b':'w').some(x=>x[1]===t);const r=new T.Mesh(cap?new T.RingGeometry(.34,.44,32):new T.CircleGeometry(.16,24),new T.MeshBasicMaterial({color:risky?0xffb030:0x30e080,transparent:true,opacity:.9,depthWrite:false}));r.rotation.x=-Math.PI/2;r.position.set((t&7)-3.5,.14,(t>>3)-3.5);mkg.add(r);}}
-function paint(){const kw=B.indexOf('K'),kb=B.indexOf('k'),cw=chk(B,'w'),cb=chk(B,'b');tiles.forEach((t,i)=>{let c=0,e=0;if(last&&(i===last[0]||i===last[1])){c=0xff3a20;e=.45;}if(hintMv&&(i===hintMv[0]||i===hintMv[1])){c=0x4aa8ff;e=.8;}if(kf&&i===kc){c=0x9fd0ff;e=.7;}if(i===sel){c=0xff8a2a;e=.9;}if((cw&&i===kw)||(cb&&i===kb)){c=0xff1010;e=1;}t.material.emissive.setHex(c);t.material.emissiveIntensity=e;});}
+function paint(){if(!B||!tiles.length)return;const kw=B.indexOf('K'),kb=B.indexOf('k'),cw=chk(B,'w'),cb=chk(B,'b');tiles.forEach((t,i)=>{let c=0,e=0;if(last&&(i===last[0]||i===last[1])){c=0xff3a20;e=.45;}if(hintMv&&(i===hintMv[0]||i===hintMv[1])){c=0x4aa8ff;e=.8;}if(kf&&i===kc){c=0x9fd0ff;e=.7;}if(i===sel){c=0xff8a2a;e=.9;}if((cw&&i===kw)||(cb&&i===kb)){c=0xff1010;e=1;}t.material.emissive.setHex(c);t.material.emissiveIntensity=e;});}
 function impact(x,z,v,dx,dz){burst(x,.8,z,90,6);wave(x,z,1);shake=.45;flash.position.set(x,1.2,z);flash.intensity=14;
  if(v){const l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,sp=rnd(-1,1)*2;v.userData.busy=1;tw(800,k=>{v.position.set(x+ux*3.2*k,.11+Math.sin(Math.PI*k)*1.8,z+uz*3.2*k);v.rotation.x=-k*5*(uz||1);v.rotation.z=k*sp*3;v.scale.setScalar(Math.max(.05,1-k*k*.9));},()=>{pcs.remove(v);kill(v);});}}
 function move3d(m,cs){const cap=cs>=0,[f,to]=m,g=PM[f],v=cap?PM[cs]:null,x0=(f&7)-3.5,z0=(f>>3)-3.5,x1=(to&7)-3.5,z1=(to>>3)-3.5,hov=B[to]===START[to]?0:.24,DU=cap?1500:750,ez=k=>k*k*(3-2*k);
@@ -401,30 +401,55 @@ const users=()=>LS.get('cs_users')||{};
 const sha=async s=>{try{const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return[...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join('');}catch(e){let h=5381;for(const ch of s)h=(h*33^ch.charCodeAt(0))>>>0;return'x'+h;}};
 const saveCfg=()=>LS.set('cs_cfg',{mode:cfg.mode,level:cfg.level,tc:cfg.tc,help:cfg.help,p2:cfg.p2});
 Object.assign(cfg,LS.get('cs_cfg')||{});
-{const ss=LS.get('cs_session');if(ss&&(ss==='Guest'||users()[String(ss).toLowerCase()]))cfg.user=ss;}
+{const ss=LS.get('cs_session');if(ss&&ss!=='Guest'){cfg.user=ss;LS.set('cs_admin',false);}else if(ss==='Guest'){cfg.user='Guest';LS.set('cs_admin',false);}}
 let signup=false,ingame=false,rsT=0, adminLoginMode=false;
 const lerr=m=>{$('lerr').textContent=m;};
 function ltab(su){signup=su;adminLoginMode=false;$('tl').classList.toggle('on',!su);$('ts').classList.toggle('on',su);$('ta').classList.remove('on');$('lcw').hidden=!su;$('lgo').textContent=su?'Create account':'Log in';$('lp').autocomplete=su?'new-password':'current-password';$('adminNote').hidden=true;lerr('');}
 function adminTab(){adminLoginMode=true;signup=false;$('ta').classList.add('on');$('tl').classList.remove('on');$('ts').classList.remove('on');$('lcw').hidden=true;$('lgo').textContent='Admin Login';$('lp').autocomplete='current-password';$('adminNote').hidden=false;lerr('');}
-function signin(n, isAdmin){cfg.user=n;LS.set('cs_session',n);if(isAdmin)LS.set('cs_admin',true);else LS.removeItem('cs_admin');$('lp').value='';$('lc').value='';nav('setup');}
+async function apiLogin(n,p){
+  try{
+    const res=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:n,password:p})});
+    const data=await res.json();
+    if(!res.ok){
+      if(data.error?.includes('pending')) return lerr('Account pending admin approval. Please wait for approval.');
+      if(data.error?.includes('rejected')) return lerr('Registration was rejected. Contact admin or try different username.');
+      return lerr(data.error||'Login failed');
+    }
+    cfg.user=data.username;
+    LS.set('cs_session',data.username);
+    LS.set('cs_admin',data.is_admin||false);
+    $('lp').value='';$('lc').value='';nav('setup');
+  }catch(e){lerr('Connection error - is server running?');}
+}
+async function apiSignup(n,p){
+  try{
+    const res=await fetch('/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:n,password:p})});
+    const data=await res.json();
+    if(!res.ok)return lerr(data.error||'Registration failed');
+    lerr('');$('lerr').style.color='#4ade80';$('lerr').textContent='Registration submitted! Awaiting admin approval. You can login after approval.';
+  }catch(e){lerr('Connection error');}
+}
 async function adminSignin(n,p){
   try{
     const res=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:n,password:p})});
     const data=await res.json();
     if(!res.ok)return lerr(data.error||'Login failed');
     if(!data.is_admin)return lerr('Admin access required');
-    signin(n,true);
+    cfg.user=data.username;
+    LS.set('cs_session',data.username);
+    LS.set('cs_admin',true);
+    $('lp').value='';$('lc').value='';nav('setup');
   }catch(e){lerr('Connection error');}
 }
-$('lf').onsubmit=async e=>{e.preventDefault();const n=$('lu').value.trim(),p=$('lp').value,k=n.toLowerCase(),U=users();
+$('lf').onsubmit=async e=>{e.preventDefault();const n=$('lu').value.trim(),p=$('lp').value;
  if(!/^[A-Za-z0-9_ ]{3,16}$/.test(n))return lerr('Username: 3 to 16 letters, numbers, spaces or underscores.');
  if(p.length<6)return lerr('Password must be at least 6 characters.');
+ $('lerr').style.color='#ff8a7a';
  if(adminLoginMode){return adminSignin(n,p);}
- if(signup){if(p!==$('lc').value)return lerr('The two passwords do not match.');if(U[k])return lerr('That username is already taken on this device.');
-  const salt=Math.random().toString(36).slice(2)+Date.now().toString(36);U[k]={name:n,salt,h:await sha(salt+p),st:{w:0,d:0,l:0}};LS.set('cs_users',U);signin(n);}
- else{if(!U[k]||U[k].h!==await sha(U[k].salt+p))return lerr('Wrong username or password.');signin(U[k].name);}};
+ if(signup){if(p!==$('lc').value)return lerr('The two passwords do not match.');return apiSignup(n,p);}
+ return apiLogin(n,p);};
 $('tl').onclick=()=>ltab(false);$('ts').onclick=()=>ltab(true);$('ta').onclick=()=>adminTab();
-$('gst').onclick=()=>signin('Guest');
+$('gst').onclick=()=>{cfg.user='Guest';LS.set('cs_session','Guest');LS.set('cs_admin',false);$('lp').value='';$('lc').value='';nav('setup');};
 $('lo').onclick=()=>{cfg.user=null;LS.set('cs_session',null);LS.removeItem('cs_admin');nav('login');};
 function paintSetup(){document.querySelectorAll('#p-setup [data-o],#p-setup [data-l],#p-setup [data-t],#p-setup [data-h]').forEach(b=>{const d=b.dataset,on=d.o?d.o===cfg.mode:d.l?d.l===cfg.level:d.t?d.t===cfg.tc:d.h===cfg.help;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);});
  $('lvbox').hidden=cfg.mode!=='cpu';$('p2box').hidden=cfg.mode!=='two';$('p2n').value=cfg.p2==='Player 2'?'':cfg.p2;$('uwho').textContent=cfg.user||'';
@@ -436,7 +461,7 @@ function vo(){if(page!=='play'&&innerWidth>900)cam.setViewOffset(innerWidth,inne
 function nav(p){if(p!=='login'&&!cfg.user)p='login';if(p==='play'&&!ingame)p='setup';const was=page;page=p;for(const x of['login','setup','play'])$('p-'+x).hidden=x!==p;
  if(was==='play'&&p!=='play'){ingame=false;mode=cfg.mode;level=cfg.level;help=cfg.help;init();}
  if(p==='setup')paintSetup();if(location.hash!=='#/'+p)location.hash='/'+p;vo();}
-const route=()=>{let p=(location.hash||'').slice(2);if(!['login','setup','play'].includes(p))p='login';if(p==='login'&&cfg.user)p='setup';nav(p);};
+let route=()=>{let p=(location.hash||'').slice(2);if(!['login','setup','play'].includes(p))p='login';if(p==='login'&&cfg.user)p='setup';nav(p);};
 addEventListener('hashchange',route);
 function stat(k){const U=users(),u=cfg.user&&U[cfg.user.toLowerCase()];if(u){u.st[k]++;LS.set('cs_users',U);}}
 function finish(r){if(fin)return;fin=true;const cpu=mode==='cpu';if(cpu)stat(r==='w'?'w':r==='b'?'l':'d');
@@ -449,7 +474,7 @@ $('rm').onclick=()=>apply();$('rsu').onclick=()=>{$('res').hidden=true;nav('setu
 
 // ============ ADMIN PANEL LOGIC ============
 let adminSocket = null;
-let adminTab = 'dashboard';
+let adminTabActive = 'dashboard';
 let adminData = { users: [], rooms: [], games: [], tournaments: [], announcements: [], stats: {} };
 
 const API_BASE = '';
@@ -769,12 +794,18 @@ function renderAdminAnnouncements() {
   return html;
 }
 
-function renderAdminContent() {
+async function renderAdminContent() {
   const content = $('adminContent');
   if (!content) return;
-  switch (adminTab) {
+  switch (adminTabActive) {
     case 'dashboard': content.innerHTML = renderAdminDashboard(); loadAdminStats(); break;
-    case 'users': content.innerHTML = renderAdminUsers() + '<div style="margin-top:20px">' + renderAdminPendingUsers(adminData.users.filter(u => u.registration_status === 'pending')) + '</div>'; loadAdminUsers(); break;
+    case 'users':
+      content.innerHTML = renderAdminUsers() + '<div style="margin-top:20px" id="pendingUsersSection">Loading...</div>';
+      await loadAdminUsers();
+      const pendingHtml = renderAdminPendingUsers(adminData.users.filter(u => u.registration_status === 'pending'));
+      const section = $('pendingUsersSection');
+      if (section) section.outerHTML = '<div style="margin-top:20px">' + pendingHtml + '</div>';
+      break;
     case 'rooms': content.innerHTML = renderAdminRooms(); loadAdminRooms(); break;
     case 'games': content.innerHTML = renderAdminGames(); loadAdminGames(); break;
     case 'tournaments': content.innerHTML = renderAdminTournaments(); loadAdminTournaments(); break;
@@ -783,7 +814,7 @@ function renderAdminContent() {
 }
 
 function switchAdminTab(tab) {
-  adminTab = tab;
+  adminTabActive = tab;
   document.querySelectorAll('#adminTabs button').forEach(b => {
     b.classList.toggle('on', b.dataset.tab === tab);
     b.setAttribute('aria-pressed', b.dataset.tab === tab);

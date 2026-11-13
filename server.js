@@ -125,7 +125,8 @@ app.post('/api/auth/login', async (req, res) => {
     res.json({
       success: true,
       userId: user.id,
-      username: user.username
+      username: user.username,
+      is_admin: user.is_admin === 1
     });
   } catch (e) {
     console.error('Login error:', e);
