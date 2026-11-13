@@ -8,8 +8,22 @@ const dbPath = process.env.DATABASE_PATH || path.join(__dirname, 'data', 'chess.
 
 // Ensure database directory exists
 const dbDir = path.dirname(dbPath);
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+try {
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+} catch (err) {
+  // Fallback: if /data is not writable, use local directory
+  if (dbPath.startsWith('/data/')) {
+    console.warn('Cannot write to /data, falling back to local data directory');
+    const fallbackPath = path.join(__dirname, 'data', 'chess.db');
+    const fallbackDir = path.dirname(fallbackPath);
+    if (!fs.existsSync(fallbackDir)) {
+      fs.mkdirSync(fallbackDir, { recursive: true });
+    }
+    // Note: This will only persist for the current deploy
+    // For production, ensure persistent disk is properly mounted at /data
+  }
 }
 
 const db = new Database(dbPath);
