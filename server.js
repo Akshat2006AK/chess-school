@@ -683,6 +683,23 @@ app.post('/api/rooms/join', (req, res) => {
     roomOps.updateGuest.run(userId, username, now, room.id);
     roomOps.updateStatus.run('playing', now, room.id);
 
+    // Create game record in database
+    const gameId = room.id; // Use roomId as gameId
+    gameOps.create.run(
+      gameId,
+      room.host_id,
+      userId,
+      room.host_name,
+      username,
+      'multiplayer',
+      null, // level not applicable for multiplayer
+      room.time_control,
+      null, // result - game in progress
+      '[]', // empty moves array
+      now,  // started_at
+      null  // ended_at - not finished yet
+    );
+
     const gameState = roomStates.get(room.id) || JSON.parse(room.game_state);
     roomStates.set(room.id, gameState);
 

@@ -404,7 +404,7 @@ const users=()=>LS.get('cs_users')||{};
 const sha=async s=>{try{const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return[...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join('');}catch(e){let h=5381;for(const ch of s)h=(h*33^ch.charCodeAt(0))>>>0;return'x'+h;}};
 const saveCfg=()=>LS.set('cs_cfg',{mode:cfg.mode,level:cfg.level,tc:cfg.tc,help:cfg.help,p2:cfg.p2});
 Object.assign(cfg,LS.get('cs_cfg')||{});
-{const ss=LS.get('cs_session');if(ss&&ss!=='Guest'){cfg.user=ss;LS.set('cs_admin',false);}else if(ss==='Guest'){cfg.user='Guest';LS.set('cs_admin',false);}}
+{const ss=LS.get('cs_session');if(ss&&ss!=='Guest'){cfg.user=ss;}else if(ss==='Guest'){cfg.user='Guest';LS.set('cs_admin',false);}}
 let signup=false,ingame=false,rsT=0, adminLoginMode=false;
 const lerr=m=>{$('lerr').textContent=m;};
 function ltab(su){signup=su;adminLoginMode=false;$('tl').classList.toggle('on',!su);$('ts').classList.toggle('on',su);$('ta').classList.remove('on');$('lcw').hidden=!su;$('lgo').textContent=su?'Create account':'Log in';$('lp').autocomplete=su?'new-password':'current-password';$('adminNote').hidden=true;lerr('');}
@@ -421,6 +421,10 @@ async function apiLogin(n,p){
     cfg.user=data.username;
     LS.set('cs_session',data.username);
     LS.set('cs_admin',data.is_admin||false);
+    // Save user data including ID to localStorage for adminFetch
+    const U = users();
+    U[data.username.toLowerCase()] = { ...U[data.username.toLowerCase()], id: data.userId, username: data.username, is_admin: data.is_admin };
+    LS.set('cs_users', U);
     $('lp').value='';$('lc').value='';nav('setup');
   }catch(e){lerr('Connection error - is server running?');}
 }
@@ -441,6 +445,10 @@ async function adminSignin(n,p){
     cfg.user=data.username;
     LS.set('cs_session',data.username);
     LS.set('cs_admin',true);
+    // Save user data including ID to localStorage for adminFetch
+    const U = users();
+    U[data.username.toLowerCase()] = { ...U[data.username.toLowerCase()], id: data.userId, username: data.username, is_admin: true };
+    LS.set('cs_users', U);
     $('lp').value='';$('lc').value='';nav('setup');
   }catch(e){lerr('Connection error');}
 }
